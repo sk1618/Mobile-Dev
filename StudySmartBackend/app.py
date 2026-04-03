@@ -1,4 +1,6 @@
 from flask import Flask, request, jsonify
+from pypdf import PdfReader
+import io
 
 app = Flask(__name__)
 
@@ -45,17 +47,70 @@ def generate_roadmap(topic):
     return roadmap
 
 
+def summarize_text(text):
+    text = " ".join(text.split())
+    if not text:
+        return "No readable text was found in this PDF."
+
+    if len(text) > 2500:
+        text = text[:2500]
+
+    sentences = text.split(". ")
+    short_sentences = [s.strip() for s in sentences[:6] if s.strip()]
+
+    if not short_sentences:
+        return text[:600]
+
+    summary = "Lecture Summary:\n\n"
+    for i, sentence in enumerate(short_sentences[:5], start=1):
+        summary += f"{i}) {sentence.strip()}"
+        if not sentence.endswith("."):
+            summary += "."
+        summary += "\n\n"
+
+    summary += "Key takeaway: review the main definitions, examples, and repeated concepts from this lecture."
+    return summary
+
+
 @app.route('/generate-roadmap', methods=['POST'])
 def roadmap():
     data = request.get_json()
-
     topic = data.get("topic", "")
-
     result = generate_roadmap(topic)
+    return jsonify({"roadmap": result})
 
-    return jsonify({
-        "roadmap": result
-    })
+
+@app.route('/summarize-pdf', methods=['POST'])
+def summarize_pdf():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    uploaded_file = request.files['file']
+
+    if uploaded_file.filename == '':
+        return jsonify({"error": "Empty file name"}), 400
+
+    if not uploaded_file.filename.lower().endswith('.pdf'):
+        return jsonify({"error": "Only PDF files are allowed"}), 400
+
+    try:
+        pdf_bytes = uploaded_file.read()
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+
+        extracted_text = ""
+        for page in reader.pages:
+            page_text = page.extract_text()
+            if page_text:
+                extracted_text += page_text + "\n"
+
+        summary = summarize_text(extracted_text)
+
+        return jsonify({
+            "summary": summary
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
