@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primaryColor">#D6C2FF</color>
+    <color name="onPrimaryColor">#111111</color>
+
+    <color name="screenBackground">#121212</color>
+    <color name="cardBackground">#1E1E1E</color>
+
+    <color name="textPrimary">#F5F5F5</color>
+    <color name="textSecondary">#B0B0B0</color>
+
+    <color name="accentPurple">#C79CFF</color>
+    <color name="softPurple">#2A1F35</color>
+
+    <color name="borderSoft">#4A3A61</color>
+    <color name="navSelected">#FFFFFF</color>
+    <color name="navUnselected">#9A9A9A</color>
+</resources>
