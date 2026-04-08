@@ -2,7 +2,7 @@
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#F7F7FA"
+    android:background="@color/screenBackground"
     android:fillViewport="true"
     android:scrollbars="vertical">
 
@@ -17,7 +17,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="Stats"
-            android:textColor="#111111"
+            android:textColor="@color/textPrimary"
             android:textSize="28sp"
             android:textStyle="bold" />
 
@@ -25,10 +25,11 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="Your productivity dashboard from SQLite"
-            android:textColor="#8B8E99"
+            android:text="Your productivity dashboard"
+            android:textColor="@color/textSecondary"
             android:textSize="14sp" />
 
+        <!-- Top cards -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -79,7 +80,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Reminders"
-                    android:textColor="#7E8391"
+                    android:textColor="@color/textSecondary"
                     android:textSize="14sp" />
 
                 <TextView
@@ -88,11 +89,21 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="18dp"
                     android:text="0"
-                    android:textColor="#111111"
+                    android:textColor="@color/textPrimary"
                     android:textSize="30sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
+
+        <!-- Productivity Summary -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="Productivity Summary"
+            android:textColor="@color/textPrimary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -102,28 +113,28 @@
 
             <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="130dp"
+                android:layout_height="110dp"
                 android:layout_weight="1"
-                android:background="@drawable/card_white"
-                android:elevation="4dp"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:background="@drawable/stats_summary_box"
+                android:gravity="center"
+                android:orientation="vertical">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Study Sessions"
-                    android:textColor="#7E8391"
-                    android:textSize="14sp" />
+                    android:text="Completion"
+                    android:textColor="@color/textSecondary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
 
                 <TextView
-                    android:id="@+id/statsTotalSessions"
+                    android:id="@+id/statsCompletionRate"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="18dp"
-                    android:text="0"
-                    android:textColor="#111111"
-                    android:textSize="28sp"
+                    android:layout_marginTop="8dp"
+                    android:text="0%"
+                    android:textColor="@color/textPrimary"
+                    android:textSize="22sp"
                     android:textStyle="bold" />
             </LinearLayout>
 
@@ -133,86 +144,76 @@
 
             <LinearLayout
                 android:layout_width="0dp"
-                android:layout_height="130dp"
+                android:layout_height="110dp"
                 android:layout_weight="1"
-                android:background="@drawable/card_white"
-                android:elevation="4dp"
+                android:background="@drawable/stats_summary_box"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Avg Session"
+                    android:textColor="@color/textSecondary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/statsAverageSession"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="0 min"
+                    android:textColor="@color/textPrimary"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <Space
+                android:layout_width="12dp"
+                android:layout_height="wrap_content" />
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="110dp"
+                android:layout_weight="1"
+                android:background="@drawable/stats_summary_box"
+                android:gravity="center"
                 android:orientation="vertical"
-                android:padding="16dp">
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp">
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Study Minutes"
-                    android:textColor="#7E8391"
-                    android:textSize="14sp" />
+                    android:text="Last Session"
+                    android:textColor="@color/textSecondary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
 
                 <TextView
-                    android:id="@+id/statsStudyMinutes"
+                    android:id="@+id/statsLastSession"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="18dp"
-                    android:text="0"
-                    android:textColor="#111111"
-                    android:textSize="28sp"
+                    android:layout_marginTop="8dp"
+                    android:gravity="center"
+                    android:text="none"
+                    android:textColor="@color/textPrimary"
+                    android:textSize="14sp"
                     android:textStyle="bold" />
             </LinearLayout>
         </LinearLayout>
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/statsSummaryText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:background="@drawable/card_white"
-            android:elevation="4dp"
-            android:orientation="vertical"
-            android:padding="18dp">
+            android:layout_marginTop="14dp"
+            android:text="You have completed 0 out of 0 tasks."
+            android:textColor="@color/textSecondary"
+            android:textSize="14sp" />
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Productivity Summary"
-                android:textColor="#111111"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/statsCompletionRate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="Completion Rate: 0%"
-                android:textColor="#111111"
-                android:textSize="16sp" />
-
-            <TextView
-                android:id="@+id/statsAverageSession"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="Average Session Length: 0 min"
-                android:textColor="#111111"
-                android:textSize="16sp" />
-
-            <TextView
-                android:id="@+id/statsLastSession"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="Last Session: none"
-                android:textColor="#111111"
-                android:textSize="16sp" />
-
-            <TextView
-                android:id="@+id/statsSummaryText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="You have completed 0 out of 0 tasks."
-                android:textColor="#7C7F8A"
-                android:textSize="14sp" />
-        </LinearLayout>
-
+        <!-- Task Distribution -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="340dp"
@@ -226,7 +227,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="Task Distribution"
-                android:textColor="#111111"
+                android:textColor="@color/textPrimary"
                 android:textSize="18sp"
                 android:textStyle="bold" />
 
@@ -238,6 +239,7 @@
                 android:layout_weight="1" />
         </LinearLayout>
 
+        <!-- Weekly Trend -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="340dp"
@@ -245,59 +247,116 @@
             android:background="@drawable/card_white"
             android:elevation="4dp"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:padding="18dp">
 
-            <TextView
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Weekly Study Chart"
-                android:textColor="#111111"
-                android:textSize="18sp"
-                android:textStyle="bold" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <com.github.mikephil.charting.charts.BarChart
-                android:id="@+id/weeklyStudyChart"
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Weekly Trend"
+                    android:textColor="@color/textPrimary"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/statsTrendPill"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/next_exam_button_bg"
+                    android:paddingStart="14dp"
+                    android:paddingTop="8dp"
+                    android:paddingEnd="14dp"
+                    android:paddingBottom="8dp"
+                    android:text="+0%"
+                    android:textColor="#2FA56C"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <com.github.mikephil.charting.charts.LineChart
+                android:id="@+id/weeklyStudyLineChart"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
-                android:layout_marginTop="16dp"
+                android:layout_marginTop="18dp"
                 android:layout_weight="1" />
         </LinearLayout>
+
+        <!-- Quick Insights -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="Quick Insights"
+            android:textColor="@color/textPrimary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:layout_marginBottom="16dp"
-            android:background="@drawable/card_white"
-            android:elevation="4dp"
-            android:orientation="vertical"
-            android:padding="18dp">
+            android:layout_marginTop="14dp"
+            android:orientation="vertical">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Quick Insights"
-                android:textColor="#111111"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/insightMostProductiveDay"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="Most productive day: none yet"
-                android:textColor="#111111"
-                android:textSize="15sp" />
+                android:background="@drawable/insight_card_bg"
+                android:elevation="2dp"
+                android:orientation="vertical"
+                android:padding="16dp">
 
-            <TextView
-                android:id="@+id/insightTaskBalance"
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Most Productive Day"
+                    android:textColor="@color/textSecondary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/insightMostProductiveDay"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="No study sessions yet"
+                    android:textColor="@color/textPrimary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="Task insight will appear here"
-                android:textColor="#111111"
-                android:textSize="15sp" />
+                android:layout_marginTop="12dp"
+                android:background="@drawable/insight_card_bg"
+                android:elevation="2dp"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Task Balance"
+                    android:textColor="@color/textSecondary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/insightTaskBalance"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="Task insight will appear here"
+                    android:textColor="@color/textPrimary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
         </LinearLayout>
 
     </LinearLayout>

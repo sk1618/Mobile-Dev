@@ -9,15 +9,15 @@ import android.widget.TextView;
 
 import androidx.fragment.app.Fragment;
 
-import com.github.mikephil.charting.charts.BarChart;
+import com.github.mikephil.charting.charts.LineChart;
 import com.github.mikephil.charting.charts.PieChart;
 import com.github.mikephil.charting.components.Description;
 import com.github.mikephil.charting.components.Legend;
 import com.github.mikephil.charting.components.XAxis;
 import com.github.mikephil.charting.components.YAxis;
-import com.github.mikephil.charting.data.BarData;
-import com.github.mikephil.charting.data.BarDataSet;
-import com.github.mikephil.charting.data.BarEntry;
+import com.github.mikephil.charting.data.Entry;
+import com.github.mikephil.charting.data.LineData;
+import com.github.mikephil.charting.data.LineDataSet;
 import com.github.mikephil.charting.data.PieData;
 import com.github.mikephil.charting.data.PieDataSet;
 import com.github.mikephil.charting.data.PieEntry;
@@ -31,12 +31,11 @@ import java.util.Locale;
 
 public class StatsFragment extends Fragment {
 
-    private TextView statsTotalTasks, statsReminders, statsTotalSessions, statsStudyMinutes;
-    private TextView statsCompletionRate, statsAverageSession, statsLastSession, statsSummaryText;
-    private TextView insightMostProductiveDay, insightTaskBalance;
+    private TextView statsTotalTasks, statsReminders, statsCompletionRate, statsAverageSession, statsLastSession;
+    private TextView statsSummaryText, insightMostProductiveDay, insightTaskBalance, statsTrendPill;
 
     private PieChart taskDistributionChart;
-    private BarChart weeklyStudyChart;
+    private LineChart weeklyStudyLineChart;
     private DatabaseHelper databaseHelper;
 
     public StatsFragment() {
@@ -49,19 +48,16 @@ public class StatsFragment extends Fragment {
 
         statsTotalTasks = view.findViewById(R.id.statsTotalTasks);
         statsReminders = view.findViewById(R.id.statsReminders);
-        statsTotalSessions = view.findViewById(R.id.statsTotalSessions);
-        statsStudyMinutes = view.findViewById(R.id.statsStudyMinutes);
-
         statsCompletionRate = view.findViewById(R.id.statsCompletionRate);
         statsAverageSession = view.findViewById(R.id.statsAverageSession);
         statsLastSession = view.findViewById(R.id.statsLastSession);
         statsSummaryText = view.findViewById(R.id.statsSummaryText);
-
         insightMostProductiveDay = view.findViewById(R.id.insightMostProductiveDay);
         insightTaskBalance = view.findViewById(R.id.insightTaskBalance);
+        statsTrendPill = view.findViewById(R.id.statsTrendPill);
 
         taskDistributionChart = view.findViewById(R.id.taskDistributionChart);
-        weeklyStudyChart = view.findViewById(R.id.weeklyStudyChart);
+        weeklyStudyLineChart = view.findViewById(R.id.weeklyStudyLineChart);
 
         databaseHelper = new DatabaseHelper(getContext());
 
@@ -99,16 +95,13 @@ public class StatsFragment extends Fragment {
 
         statsTotalTasks.setText(String.valueOf(totalTasks));
         statsReminders.setText(String.valueOf(reminderCount));
-        statsTotalSessions.setText(String.valueOf(totalSessions));
-        statsStudyMinutes.setText(String.valueOf(totalStudyMinutes));
-
-        statsCompletionRate.setText("Completion Rate: " + completionRate + "%");
-        statsAverageSession.setText("Average Session Length: " + averageSession + " min");
-        statsLastSession.setText("Last Session: " + (lastSessionDate != null ? lastSessionDate : "none"));
+        statsCompletionRate.setText(completionRate + "%");
+        statsAverageSession.setText(averageSession + " min");
+        statsLastSession.setText(lastSessionDate != null ? lastSessionDate : "none");
         statsSummaryText.setText("You have completed " + completedTasks + " out of " + totalTasks + " tasks.");
 
         updateTaskDistributionPieChart(pendingTasks, inProgressTasks, completedTasks);
-        updateWeeklyStudyChart();
+        updateWeeklyTrendChart();
         updateInsights(pendingTasks, completedTasks);
     }
 
@@ -156,18 +149,22 @@ public class StatsFragment extends Fragment {
         taskDistributionChart.invalidate();
     }
 
-    private void updateWeeklyStudyChart() {
-        int[] dailyMinutes = new int[7];
+    private void updateWeeklyTrendChart() {
+        int[] currentWeek = new int[7];
+        int[] previousWeek = new int[7];
 
         ArrayList<StudySession> sessions = databaseHelper.getAllStudySessions();
 
         Calendar now = Calendar.getInstance();
-        Calendar startOfWeek = Calendar.getInstance();
-        startOfWeek.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
-        startOfWeek.set(Calendar.HOUR_OF_DAY, 0);
-        startOfWeek.set(Calendar.MINUTE, 0);
-        startOfWeek.set(Calendar.SECOND, 0);
-        startOfWeek.set(Calendar.MILLISECOND, 0);
+        Calendar startOfThisWeek = Calendar.getInstance();
+        startOfThisWeek.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
+        startOfThisWeek.set(Calendar.HOUR_OF_DAY, 0);
+        startOfThisWeek.set(Calendar.MINUTE, 0);
+        startOfThisWeek.set(Calendar.SECOND, 0);
+        startOfThisWeek.set(Calendar.MILLISECOND, 0);
+
+        Calendar startOfPrevWeek = (Calendar) startOfThisWeek.clone();
+        startOfPrevWeek.add(Calendar.DAY_OF_YEAR, -7);
 
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault());
 
@@ -178,77 +175,83 @@ public class StatsFragment extends Fragment {
 
                 Calendar sessionCal = Calendar.getInstance();
                 sessionCal.setTime(sessionDate);
+                long sessionMillis = sessionCal.getTimeInMillis();
 
-                if (sessionCal.before(startOfWeek) || sessionCal.after(now)) {
-                    continue;
+                if (sessionMillis >= startOfThisWeek.getTimeInMillis() && sessionMillis <= now.getTimeInMillis()) {
+                    int index = mapDay(sessionCal.get(Calendar.DAY_OF_WEEK));
+                    currentWeek[index] += session.getDurationMinutes();
+                } else if (sessionMillis >= startOfPrevWeek.getTimeInMillis() && sessionMillis < startOfThisWeek.getTimeInMillis()) {
+                    int index = mapDay(sessionCal.get(Calendar.DAY_OF_WEEK));
+                    previousWeek[index] += session.getDurationMinutes();
                 }
-
-                int dayOfWeek = sessionCal.get(Calendar.DAY_OF_WEEK);
-                int index;
-
-                if (dayOfWeek == Calendar.MONDAY) index = 0;
-                else if (dayOfWeek == Calendar.TUESDAY) index = 1;
-                else if (dayOfWeek == Calendar.WEDNESDAY) index = 2;
-                else if (dayOfWeek == Calendar.THURSDAY) index = 3;
-                else if (dayOfWeek == Calendar.FRIDAY) index = 4;
-                else if (dayOfWeek == Calendar.SATURDAY) index = 5;
-                else index = 6;
-
-                dailyMinutes[index] += session.getDurationMinutes();
 
             } catch (Exception ignored) {
             }
         }
 
-        ArrayList<BarEntry> entries = new ArrayList<>();
+        ArrayList<Entry> entries = new ArrayList<>();
         for (int i = 0; i < 7; i++) {
-            entries.add(new BarEntry(i, dailyMinutes[i]));
+            entries.add(new Entry(i, currentWeek[i]));
         }
 
-        BarDataSet dataSet = new BarDataSet(entries, "Study Minutes");
-        dataSet.setColor(Color.parseColor("#111323"));
-        dataSet.setValueTextColor(Color.BLACK);
-        dataSet.setValueTextSize(12f);
+        LineDataSet dataSet = new LineDataSet(entries, "Weekly Trend");
+        dataSet.setColor(Color.parseColor("#0B1026"));
+        dataSet.setLineWidth(3.5f);
+        dataSet.setDrawCircles(false);
+        dataSet.setDrawValues(false);
+        dataSet.setMode(LineDataSet.Mode.CUBIC_BEZIER);
+        dataSet.setDrawFilled(true);
+        dataSet.setFillColor(Color.parseColor("#EEF0F4"));
 
-        BarData barData = new BarData(dataSet);
-        barData.setBarWidth(0.55f);
-
-        weeklyStudyChart.setData(barData);
-        weeklyStudyChart.setFitBars(true);
-        weeklyStudyChart.animateY(800);
+        LineData lineData = new LineData(dataSet);
+        weeklyStudyLineChart.setData(lineData);
 
         Description description = new Description();
         description.setText("");
-        weeklyStudyChart.setDescription(description);
+        weeklyStudyLineChart.setDescription(description);
+        weeklyStudyLineChart.setDrawGridBackground(false);
+        weeklyStudyLineChart.setTouchEnabled(false);
 
-        weeklyStudyChart.setDrawGridBackground(false);
-        weeklyStudyChart.setDrawBarShadow(false);
-        weeklyStudyChart.setPinchZoom(false);
-        weeklyStudyChart.setDoubleTapToZoomEnabled(false);
-
-        Legend legend = weeklyStudyChart.getLegend();
+        Legend legend = weeklyStudyLineChart.getLegend();
         legend.setEnabled(false);
 
-        XAxis xAxis = weeklyStudyChart.getXAxis();
-        xAxis.setValueFormatter(new IndexAxisValueFormatter(
-                new String[]{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"}
-        ));
+        XAxis xAxis = weeklyStudyLineChart.getXAxis();
+        xAxis.setValueFormatter(new IndexAxisValueFormatter(new String[]{"M", "T", "W", "T", "F", "S", "S"}));
         xAxis.setPosition(XAxis.XAxisPosition.BOTTOM);
         xAxis.setGranularity(1f);
-        xAxis.setGranularityEnabled(true);
         xAxis.setDrawGridLines(false);
-        xAxis.setTextColor(Color.BLACK);
+        xAxis.setTextColor(Color.GRAY);
+        xAxis.setAxisLineColor(Color.TRANSPARENT);
 
-        YAxis leftAxis = weeklyStudyChart.getAxisLeft();
+        YAxis leftAxis = weeklyStudyLineChart.getAxisLeft();
         leftAxis.setAxisMinimum(0f);
-        leftAxis.setTextColor(Color.BLACK);
+        leftAxis.setTextColor(Color.GRAY);
+        leftAxis.setGridColor(Color.parseColor("#E9E9EE"));
+        leftAxis.setAxisLineColor(Color.TRANSPARENT);
 
-        YAxis rightAxis = weeklyStudyChart.getAxisRight();
+        YAxis rightAxis = weeklyStudyLineChart.getAxisRight();
         rightAxis.setEnabled(false);
 
-        weeklyStudyChart.invalidate();
+        weeklyStudyLineChart.invalidate();
 
-        updateMostProductiveDayInsight(dailyMinutes);
+        int currentTotal = 0;
+        int previousTotal = 0;
+
+        for (int value : currentWeek) currentTotal += value;
+        for (int value : previousWeek) previousTotal += value;
+
+        String trendText;
+        if (previousTotal == 0 && currentTotal > 0) {
+            trendText = "+100%";
+        } else if (previousTotal == 0) {
+            trendText = "+0%";
+        } else {
+            int percent = Math.round(((currentTotal - previousTotal) * 100f) / previousTotal);
+            trendText = (percent >= 0 ? "+" : "") + percent + "%";
+        }
+
+        statsTrendPill.setText(trendText);
+        updateMostProductiveDayInsight(currentWeek);
     }
 
     private void updateMostProductiveDayInsight(int[] dailyMinutes) {
@@ -264,19 +267,29 @@ public class StatsFragment extends Fragment {
         }
 
         if (maxValue == 0) {
-            insightMostProductiveDay.setText("Most productive day: no study sessions yet");
+            insightMostProductiveDay.setText("No study sessions yet");
         } else {
-            insightMostProductiveDay.setText("Most productive day: " + days[maxIndex] + " (" + maxValue + " min)");
+            insightMostProductiveDay.setText(days[maxIndex] + " was your strongest study day with " + maxValue + " minutes.");
         }
     }
 
     private void updateInsights(int pending, int completed) {
         if (completed > pending) {
-            insightTaskBalance.setText("Great job — you completed more tasks than you still have pending.");
+            insightTaskBalance.setText("You completed more tasks than you still have pending. Keep the momentum going.");
         } else if (pending > completed) {
-            insightTaskBalance.setText("You currently have more pending tasks than completed ones. Try finishing a few today.");
+            insightTaskBalance.setText("You currently have more pending tasks than completed ones. Try closing a few small tasks first.");
         } else {
             insightTaskBalance.setText("Your completed and pending tasks are balanced right now.");
         }
+    }
+
+    private int mapDay(int dayOfWeek) {
+        if (dayOfWeek == Calendar.MONDAY) return 0;
+        if (dayOfWeek == Calendar.TUESDAY) return 1;
+        if (dayOfWeek == Calendar.WEDNESDAY) return 2;
+        if (dayOfWeek == Calendar.THURSDAY) return 3;
+        if (dayOfWeek == Calendar.FRIDAY) return 4;
+        if (dayOfWeek == Calendar.SATURDAY) return 5;
+        return 6;
     }
 }

@@ -1,23 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/screenBackground"
-    android:fillViewport="true"
-    android:scrollbars="vertical">
+    android:background="@color/screenBackground">
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:orientation="vertical"
-        android:padding="18dp"
-        android:paddingBottom="90dp">
+        android:padding="18dp">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="AI Study Coach"
-            android:textColor="@color/accentPurple"
+            android:text="StudySmart AI"
+            android:textColor="@color/textPrimary"
             android:textSize="28sp"
             android:textStyle="bold" />
 
@@ -25,250 +22,244 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="6dp"
-            android:text="Personalized session planning."
+            android:text="Ask questions, create plans, and summarize lecture PDFs."
             android:textColor="@color/textSecondary"
             android:textSize="14sp" />
 
-        <!-- Roadmap section -->
+        <TextView
+            android:id="@+id/tvSelectedPdf"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="No PDF selected"
+            android:textColor="@color/textSecondary"
+            android:textSize="13sp" />
+
+        <androidx.core.widget.NestedScrollView
+            android:id="@+id/chatScrollView"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="14dp"
+            android:layout_weight="1"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp">
+
+            <LinearLayout
+                android:id="@+id/chatContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </androidx.core.widget.NestedScrollView>
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="20dp"
-            android:background="@drawable/ai_card_outline"
-            android:elevation="4dp"
+            android:layout_marginTop="12dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/btnPlusMenu"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/next_exam_button_bg"
+                android:contentDescription="More options"
+                android:padding="12dp"
+                android:src="@android:drawable/ic_input_add"
+                android:tint="#F26A21" />
+
+            <Space
+                android:layout_width="10dp"
+                android:layout_height="wrap_content" />
+
+            <EditText
+                android:id="@+id/etAiPrompt"
+                android:layout_width="0dp"
+                android:layout_height="52dp"
+                android:layout_weight="1"
+                android:background="@drawable/ai_input_bg"
+                android:hint="Ask StudySmart AI..."
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:textColor="@color/textPrimary"
+                android:textColorHint="@color/textSecondary"
+                android:textSize="15sp" />
+
+            <Space
+                android:layout_width="10dp"
+                android:layout_height="wrap_content" />
+
+            <ImageButton
+                android:id="@+id/btnSendAi"
+                android:layout_width="52dp"
+                android:layout_height="52dp"
+                android:background="@drawable/button_dark_rounded"
+                android:contentDescription="Send"
+                android:padding="12dp"
+                android:src="@android:drawable/ic_menu_send"
+                android:tint="#FFFFFF" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Drop-up menu -->
+    <LinearLayout
+        android:id="@+id/plusMenuLayout"
+        android:layout_width="220dp"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|start"
+        android:layout_marginStart="18dp"
+        android:layout_marginBottom="84dp"
+        android:background="@drawable/ai_plan_card_bg"
+        android:elevation="10dp"
+        android:orientation="vertical"
+        android:padding="10dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/menuChoosePdf"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@drawable/ai_chip_bg"
+            android:padding="14dp"
+            android:text="Choose PDF"
+            android:textColor="@color/accentPurple"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/menuGeneratePlan"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/ai_chip_bg"
+            android:padding="14dp"
+            android:text="Generate Study Plan"
+            android:textColor="@color/accentPurple"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Hidden study plan form -->
+    <ScrollView
+        android:id="@+id/studyPlanOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#66000000"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_margin="18dp"
+            android:layout_marginTop="80dp"
+            android:background="@drawable/ai_plan_card_bg"
+            android:elevation="12dp"
             android:orientation="vertical"
-            android:padding="18dp">
+            android:padding="16dp">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="What are you studying today?"
-                android:textColor="@color/accentPurple"
-                android:textSize="18sp"
+                android:text="Generate Smart Study Plan"
+                android:textColor="@color/textPrimary"
+                android:textSize="20sp"
                 android:textStyle="bold" />
 
             <EditText
-                android:id="@+id/etAiTopic"
+                android:id="@+id/etPlanSubject"
                 android:layout_width="match_parent"
-                android:layout_height="58dp"
+                android:layout_height="52dp"
                 android:layout_marginTop="14dp"
-                android:background="@drawable/rounded_input"
-                android:hint="e.g. Molecular Biology, Calculus II..."
-                android:paddingStart="18dp"
-                android:paddingEnd="18dp"
+                android:background="@drawable/ai_input_bg"
+                android:hint="Subject"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:textColor="@color/textPrimary"
+                android:textColorHint="@color/textSecondary" />
+
+            <EditText
+                android:id="@+id/etPlanExamDate"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/ai_input_bg"
+                android:hint="Exam date (yyyy-MM-dd)"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:textColor="@color/textPrimary"
+                android:textColorHint="@color/textSecondary" />
+
+            <EditText
+                android:id="@+id/etPlanDifficulty"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/ai_input_bg"
+                android:hint="Difficulty (Easy / Medium / Hard)"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:textColor="@color/textPrimary"
+                android:textColorHint="@color/textSecondary" />
+
+            <EditText
+                android:id="@+id/etPlanTopics"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/ai_input_bg"
+                android:hint="Topics or chapters left"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:textColor="@color/textPrimary"
+                android:textColorHint="@color/textSecondary" />
+
+            <EditText
+                android:id="@+id/etPlanConfidence"
+                android:layout_width="match_parent"
+                android:layout_height="52dp"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/ai_input_bg"
+                android:hint="Confidence level (Low / Medium / High)"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
                 android:textColor="@color/textPrimary"
                 android:textColorHint="@color/textSecondary" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="18dp"
-                android:background="@drawable/ai_soft_purple_bg"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:layout_marginTop="14dp"
+                android:orientation="horizontal">
 
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="SUBJECT CONTEXT"
-                    android:textColor="@color/accentPurple"
-                    android:textSize="13sp"
+                <Button
+                    android:id="@+id/btnClosePlanOverlay"
+                    android:layout_width="0dp"
+                    android:layout_height="52dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/next_exam_button_bg"
+                    android:backgroundTint="@null"
+                    android:text="Cancel"
+                    android:textAllCaps="false"
+                    android:textColor="#F26A21"
                     android:textStyle="bold" />
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:orientation="horizontal">
+                <Space
+                    android:layout_width="10dp"
+                    android:layout_height="wrap_content" />
 
-                    <TextView
-                        android:id="@+id/chipOrganic"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/ai_chip_bg"
-                        android:paddingStart="16dp"
-                        android:paddingTop="10dp"
-                        android:paddingEnd="16dp"
-                        android:paddingBottom="10dp"
-                        android:text="Organic Chemistry"
-                        android:textColor="@color/accentPurple"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-
-                    <Space
-                        android:layout_width="10dp"
-                        android:layout_height="wrap_content" />
-
-                    <TextView
-                        android:id="@+id/chipHistory"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/ai_chip_bg"
-                        android:paddingStart="16dp"
-                        android:paddingTop="10dp"
-                        android:paddingEnd="16dp"
-                        android:paddingBottom="10dp"
-                        android:text="World History"
-                        android:textColor="@color/accentPurple"
-                        android:textSize="13sp"
-                        android:textStyle="bold" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/chipBusiness"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/ai_chip_bg"
-                    android:paddingStart="16dp"
-                    android:paddingTop="10dp"
-                    android:paddingEnd="16dp"
-                    android:paddingBottom="10dp"
-                    android:text="Business Law"
-                    android:textColor="@color/accentPurple"
-                    android:textSize="13sp"
+                <Button
+                    android:id="@+id/btnGenerateStudyPlan"
+                    android:layout_width="0dp"
+                    android:layout_height="52dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/button_dark_rounded"
+                    android:backgroundTint="@null"
+                    android:text="Generate"
+                    android:textAllCaps="false"
+                    android:textColor="#FFFFFF"
                     android:textStyle="bold" />
             </LinearLayout>
-
-            <Button
-                android:id="@+id/btnGenerateRoadmap"
-                android:layout_width="match_parent"
-                android:layout_height="60dp"
-                android:layout_marginTop="18dp"
-                android:background="@drawable/button_dark_rounded"
-                android:backgroundTint="@null"
-                android:text="Generate Study Roadmap"
-                android:textAllCaps="false"
-                android:textColor="#FFFFFF"
-                android:textSize="18sp"
-                android:textStyle="bold" />
         </LinearLayout>
+    </ScrollView>
 
-        <LinearLayout
-            android:id="@+id/aiResultCard"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:background="@drawable/ai_result_card"
-            android:elevation="4dp"
-            android:orientation="vertical"
-            android:padding="18dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="AI Recommended for you"
-                android:textColor="@color/textPrimary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvAiRecommendation"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="14dp"
-                android:text="Based on your recent performance, the AI will suggest your next best study step here."
-                android:textColor="@color/textSecondary"
-                android:textSize="15sp"
-                android:lineSpacingExtra="4dp" />
-        </LinearLayout>
-
-        <!-- PDF summary section -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:background="@drawable/card_white"
-            android:elevation="4dp"
-            android:orientation="vertical"
-            android:padding="18dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Lecture PDF Summary"
-                android:textColor="@color/textPrimary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="10dp"
-                android:text="Upload a lecture PDF and get a short summary."
-                android:textColor="@color/textSecondary"
-                android:textSize="14sp" />
-
-            <Button
-                android:id="@+id/btnChoosePdf"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/button_secondary"
-                android:backgroundTint="@null"
-                android:text="Choose PDF"
-                android:textAllCaps="false"
-                android:textColor="#4A148C"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvSelectedPdf"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:text="No PDF selected"
-                android:textColor="@color/textSecondary"
-                android:textSize="14sp" />
-
-            <Button
-                android:id="@+id/btnSummarizePdf"
-                android:layout_width="match_parent"
-                android:layout_height="56dp"
-                android:layout_marginTop="14dp"
-                android:background="@drawable/button_dark_rounded"
-                android:backgroundTint="@null"
-                android:text="Summarize Lecture PDF"
-                android:textAllCaps="false"
-                android:textColor="#FFFFFF"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvPdfSummary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="PDF summary will appear here."
-                android:textColor="@color/textSecondary"
-                android:textSize="15sp"
-                android:lineSpacingExtra="4dp" />
-        </LinearLayout>
-
-        <!-- History -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:background="@drawable/card_white"
-            android:elevation="4dp"
-            android:orientation="vertical"
-            android:padding="18dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="AI Roadmap History"
-                android:textColor="@color/textPrimary"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <LinearLayout
-                android:id="@+id/aiHistoryContainer"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical" />
-        </LinearLayout>
-
-    </LinearLayout>
-</ScrollView>
+</FrameLayout>

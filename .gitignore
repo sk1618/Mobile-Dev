@@ -1,0 +1,6 @@
+StudySmartBackend/.env
+**/__pycache__/
+*.pyc
+.idea/
+.gradle/
+local.properties

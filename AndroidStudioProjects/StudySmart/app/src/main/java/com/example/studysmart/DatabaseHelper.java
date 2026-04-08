@@ -7,11 +7,20 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
 import java.util.ArrayList;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Locale;
+
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import java.util.ArrayList;
 
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "studysmart.db";
-    private static final int DATABASE_VERSION = 8;
+    private static final int DATABASE_VERSION = 10;
 
     // Tasks table
     public static final String TABLE_TASKS = "tasks";
@@ -54,6 +63,18 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_EXAM_ID = "exam_id";
     public static final String COLUMN_EXAM_TITLE = "exam_title";
     public static final String COLUMN_EXAM_DATE = "exam_date";
+
+    // AI Study Plans
+    public static final String TABLE_AI_STUDY_PLANS = "ai_study_plans";
+    public static final String COLUMN_PLAN_ID = "plan_id";
+    public static final String COLUMN_PLAN_SUBJECT = "plan_subject";
+    public static final String COLUMN_PLAN_EXAM_DATE = "plan_exam_date";
+    public static final String COLUMN_PLAN_TEXT = "plan_text";
+    public static final String COLUMN_PLAN_CREATED_AT = "plan_created_at";
+
+    // Due Date
+    public static final String COLUMN_DUE_DATE = "due_date";
+
     public DatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -64,8 +85,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COLUMN_TITLE + " TEXT, " +
                 COLUMN_CATEGORY + " TEXT, " +
-                COLUMN_PRIORITY + " TEXT, " +
-                COLUMN_STATUS + " TEXT)";
+                COLUMN_STATUS + " TEXT, " +
+                COLUMN_DUE_DATE + " TEXT)";
 
         String createUsersTable = "CREATE TABLE " + TABLE_USERS + " (" +
                 COLUMN_USER_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -96,12 +117,20 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COLUMN_EXAM_TITLE + " TEXT, " +
                 COLUMN_EXAM_DATE + " TEXT)";
 
+        String createAiStudyPlansTable = "CREATE TABLE " + TABLE_AI_STUDY_PLANS + " (" +
+                COLUMN_PLAN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                COLUMN_PLAN_SUBJECT + " TEXT, " +
+                COLUMN_PLAN_EXAM_DATE + " TEXT, " +
+                COLUMN_PLAN_TEXT + " TEXT, " +
+                COLUMN_PLAN_CREATED_AT + " TEXT)";
+
         db.execSQL(createTasksTable);
         db.execSQL(createUsersTable);
         db.execSQL(createRemindersTable);
         db.execSQL(createStudySessionsTable);
         db.execSQL(createAiHistoryTable);
         db.execSQL(createExamsTable);
+        db.execSQL(createAiStudyPlansTable);
     }
 
     @Override
@@ -112,6 +141,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_STUDY_SESSIONS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_AI_HISTORY);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_EXAMS);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_AI_STUDY_PLANS);
         onCreate(db);
     }
 
@@ -495,4 +525,208 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         cursor.close();
         return exam;
     }
+    public ArrayList<String> getAllTaskCategories() {
+        ArrayList<String> categories = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT DISTINCT " + COLUMN_CATEGORY +
+                        " FROM " + TABLE_TASKS +
+                        " WHERE " + COLUMN_CATEGORY + " IS NOT NULL AND " + COLUMN_CATEGORY + " != ''",
+                null
+        );
+
+        if (cursor.moveToFirst()) {
+            do {
+                categories.add(cursor.getString(0));
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        return categories;
+    }
+
+    public int getStudyStreakDays() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        ArrayList<String> dates = new ArrayList<>();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT DISTINCT substr(" + COLUMN_SESSION_DATE + ", 1, 10) as study_day " +
+                        "FROM " + TABLE_STUDY_SESSIONS + " " +
+                        "ORDER BY study_day DESC",
+                null
+        );
+
+        if (cursor.moveToFirst()) {
+            do {
+                dates.add(cursor.getString(0));
+            } while (cursor.moveToNext());
+        }
+        cursor.close();
+
+        if (dates.isEmpty()) return 0;
+
+        int streak = 0;
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+
+        try {
+            Calendar expected = Calendar.getInstance();
+            expected.set(Calendar.HOUR_OF_DAY, 0);
+            expected.set(Calendar.MINUTE, 0);
+            expected.set(Calendar.SECOND, 0);
+            expected.set(Calendar.MILLISECOND, 0);
+
+            for (int i = 0; i < dates.size(); i++) {
+                Date d = sdf.parse(dates.get(i));
+                if (d == null) continue;
+
+                Calendar current = Calendar.getInstance();
+                current.setTime(d);
+                current.set(Calendar.HOUR_OF_DAY, 0);
+                current.set(Calendar.MINUTE, 0);
+                current.set(Calendar.SECOND, 0);
+                current.set(Calendar.MILLISECOND, 0);
+
+                if (i == 0) {
+                    long diff = Math.abs(expected.getTimeInMillis() - current.getTimeInMillis());
+                    long daysDiff = diff / (24L * 60L * 60L * 1000L);
+
+                    if (daysDiff > 1) return 0;
+                    if (daysDiff == 1) {
+                        expected.add(Calendar.DAY_OF_YEAR, -1);
+                    }
+                }
+
+                if (current.getTimeInMillis() == expected.getTimeInMillis()) {
+                    streak++;
+                    expected.add(Calendar.DAY_OF_YEAR, -1);
+                } else {
+                    break;
+                }
+            }
+
+        } catch (Exception e) {
+            return 0;
+        }
+
+        return streak;
+    }
+    public boolean insertAiStudyPlan(String subject, String examDate, String plan, String createdAt) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_PLAN_SUBJECT, subject);
+        values.put(COLUMN_PLAN_EXAM_DATE, examDate);
+        values.put(COLUMN_PLAN_TEXT, plan);
+        values.put(COLUMN_PLAN_CREATED_AT, createdAt);
+
+        long result = db.insert(TABLE_AI_STUDY_PLANS, null, values);
+        return result != -1;
+    }
+
+    public ArrayList<AiStudyPlan> getAllAiStudyPlans() {
+        ArrayList<AiStudyPlan> plans = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT * FROM " + TABLE_AI_STUDY_PLANS + " ORDER BY " + COLUMN_PLAN_ID + " DESC",
+                null
+        );
+
+        if (cursor.moveToFirst()) {
+            do {
+                int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_PLAN_ID));
+                String subject = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PLAN_SUBJECT));
+                String examDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PLAN_EXAM_DATE));
+                String plan = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PLAN_TEXT));
+                String createdAt = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PLAN_CREATED_AT));
+
+                plans.add(new AiStudyPlan(id, subject, examDate, plan, createdAt));
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        return plans;
+    }
+
+    public boolean insertTask(String title, String category, String status, String dueDate) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_TITLE, title);
+        values.put(COLUMN_CATEGORY, category);
+        values.put(COLUMN_STATUS, status);
+        values.put(COLUMN_DUE_DATE, dueDate);
+
+        long result = db.insert(TABLE_TASKS, null, values);
+        return result != -1;
+    }
+
+    public ArrayList<Task> getAllTasks() {
+        ArrayList<Task> taskList = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT * FROM " + TABLE_TASKS + " ORDER BY " + COLUMN_ID + " DESC",
+                null
+        );
+
+        if (cursor.moveToFirst()) {
+            do {
+                int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ID));
+                String title = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE));
+                String category = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CATEGORY));
+                String status = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_STATUS));
+                String dueDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DUE_DATE));
+
+                taskList.add(new Task(id, title, category, status, dueDate));
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        return taskList;
+    }
+
+
+
+    public ArrayList<CalendarEvent> getAllCalendarEvents() {
+        ArrayList<CalendarEvent> events = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor taskCursor = db.rawQuery(
+                "SELECT " + COLUMN_TITLE + ", " + COLUMN_STATUS + ", " + COLUMN_DUE_DATE +
+                        " FROM " + TABLE_TASKS +
+                        " WHERE " + COLUMN_DUE_DATE + " IS NOT NULL AND " + COLUMN_DUE_DATE + " != ''",
+                null
+        );
+
+        if (taskCursor.moveToFirst()) {
+            do {
+                String title = taskCursor.getString(0);
+                String status = taskCursor.getString(1);
+                String dueDate = taskCursor.getString(2);
+
+                events.add(new CalendarEvent(dueDate, "task", status, title));
+            } while (taskCursor.moveToNext());
+        }
+        taskCursor.close();
+
+        Cursor examCursor = db.rawQuery(
+                "SELECT " + COLUMN_EXAM_TITLE + ", " + COLUMN_EXAM_DATE +
+                        " FROM " + TABLE_EXAMS,
+                null
+        );
+
+        if (examCursor.moveToFirst()) {
+            do {
+                String title = examCursor.getString(0);
+                String examDate = examCursor.getString(1);
+
+                events.add(new CalendarEvent(examDate, "exam", "exam", title));
+            } while (examCursor.moveToNext());
+        }
+        examCursor.close();
+
+        return events;
+    }
+
+
 }

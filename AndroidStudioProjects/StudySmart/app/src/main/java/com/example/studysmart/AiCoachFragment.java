@@ -1,10 +1,13 @@
 package com.example.studysmart;
 
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
+import android.provider.OpenableColumns;
 import android.text.TextUtils;
-import android.view.LayoutInflater;
+import android.view.Gravity;
 import android.view.View;
+import android.view.LayoutInflater;
 import android.view.ViewGroup;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -13,6 +16,7 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
 
 import org.json.JSONObject;
@@ -24,22 +28,19 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.Locale;
 import java.util.UUID;
 
 public class AiCoachFragment extends Fragment {
 
-    private EditText etAiTopic;
-    private TextView tvAiRecommendation;
-    private LinearLayout aiHistoryContainer;
-    private DatabaseHelper databaseHelper;
-
+    private EditText etAiPrompt, etPlanSubject, etPlanExamDate, etPlanDifficulty, etPlanTopics, etPlanConfidence;
+    private LinearLayout chatContainer;
+    private NestedScrollView chatScrollView;
     private TextView tvSelectedPdf;
-    private TextView tvPdfSummary;
-    private Uri selectedPdfUri;
+    private LinearLayout plusMenuLayout;
+    private View studyPlanOverlay;
+
+    private Uri selectedPdfUri = null;
+    private String selectedPdfName = "No PDF selected";
 
     private ActivityResultLauncher<String> pdfPickerLauncher;
 
@@ -55,7 +56,8 @@ public class AiCoachFragment extends Fragment {
                 uri -> {
                     if (uri != null) {
                         selectedPdfUri = uri;
-                        tvSelectedPdf.setText("Selected PDF ready");
+                        selectedPdfName = getFileName(uri);
+                        tvSelectedPdf.setText("PDF attached: " + selectedPdfName);
                     }
                 }
         );
@@ -67,125 +69,246 @@ public class AiCoachFragment extends Fragment {
 
         View view = inflater.inflate(R.layout.fragment_ai_coach, container, false);
 
-        etAiTopic = view.findViewById(R.id.etAiTopic);
-        tvAiRecommendation = view.findViewById(R.id.tvAiRecommendation);
-        aiHistoryContainer = view.findViewById(R.id.aiHistoryContainer);
+        etAiPrompt = view.findViewById(R.id.etAiPrompt);
+        etPlanSubject = view.findViewById(R.id.etPlanSubject);
+        etPlanExamDate = view.findViewById(R.id.etPlanExamDate);
+        etPlanDifficulty = view.findViewById(R.id.etPlanDifficulty);
+        etPlanTopics = view.findViewById(R.id.etPlanTopics);
+        etPlanConfidence = view.findViewById(R.id.etPlanConfidence);
+
+        chatContainer = view.findViewById(R.id.chatContainer);
+        chatScrollView = view.findViewById(R.id.chatScrollView);
         tvSelectedPdf = view.findViewById(R.id.tvSelectedPdf);
-        tvPdfSummary = view.findViewById(R.id.tvPdfSummary);
+        plusMenuLayout = view.findViewById(R.id.plusMenuLayout);
+        studyPlanOverlay = view.findViewById(R.id.studyPlanOverlay);
 
-        databaseHelper = new DatabaseHelper(getContext());
+        addAiMessage("Hi! I’m StudySmart AI. Ask me any study question, attach a lecture PDF, or use the + button for more actions.");
 
-        loadHistory();
-
-        view.findViewById(R.id.chipOrganic).setOnClickListener(v ->
-                etAiTopic.setText("Organic Chemistry"));
-
-        view.findViewById(R.id.chipHistory).setOnClickListener(v ->
-                etAiTopic.setText("World History"));
-
-        view.findViewById(R.id.chipBusiness).setOnClickListener(v ->
-                etAiTopic.setText("Business Law"));
-
-        view.findViewById(R.id.btnGenerateRoadmap).setOnClickListener(v -> {
-            String topic = etAiTopic.getText().toString().trim();
-
-            if (TextUtils.isEmpty(topic)) {
-                Toast.makeText(getContext(), "Please enter a subject first", Toast.LENGTH_SHORT).show();
-                return;
+        view.findViewById(R.id.btnPlusMenu).setOnClickListener(v -> {
+            if (plusMenuLayout.getVisibility() == View.VISIBLE) {
+                plusMenuLayout.setVisibility(View.GONE);
+            } else {
+                plusMenuLayout.setVisibility(View.VISIBLE);
             }
-
-            fetchRoadmapFromBackend(topic);
         });
 
-        view.findViewById(R.id.btnChoosePdf).setOnClickListener(v ->
-                pdfPickerLauncher.launch("application/pdf"));
+        view.findViewById(R.id.menuChoosePdf).setOnClickListener(v -> {
+            plusMenuLayout.setVisibility(View.GONE);
+            pdfPickerLauncher.launch("application/pdf");
+        });
 
-        view.findViewById(R.id.btnSummarizePdf).setOnClickListener(v -> {
-            if (selectedPdfUri == null) {
-                Toast.makeText(getContext(), "Please choose a PDF first", Toast.LENGTH_SHORT).show();
+        view.findViewById(R.id.menuGeneratePlan).setOnClickListener(v -> {
+            plusMenuLayout.setVisibility(View.GONE);
+            studyPlanOverlay.setVisibility(View.VISIBLE);
+        });
+
+        view.findViewById(R.id.btnClosePlanOverlay).setOnClickListener(v ->
+                studyPlanOverlay.setVisibility(View.GONE));
+
+        view.findViewById(R.id.btnGenerateStudyPlan).setOnClickListener(v -> generateStudyPlan());
+
+        view.findViewById(R.id.btnSendAi).setOnClickListener(v -> {
+            String prompt = etAiPrompt.getText().toString().trim();
+
+            if (selectedPdfUri != null) {
+                addUserMessage("Please summarize this lecture PDF.");
+                uploadPdfAndSummarize();
+                etAiPrompt.setText("");
                 return;
             }
-            uploadPdfAndSummarize();
+
+            if (TextUtils.isEmpty(prompt)) {
+                Toast.makeText(getContext(), "Please type a message first", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            addUserMessage(prompt);
+            etAiPrompt.setText("");
+            askStudyBackend(prompt);
         });
 
         return view;
     }
 
-    private void fetchRoadmapFromBackend(String topic) {
-        new Thread(() -> {
-            try {
-                URL url = new URL("http://10.0.2.2:5000/generate-roadmap");
+    private void generateStudyPlan() {
+        String subject = etPlanSubject.getText().toString().trim();
+        String examDate = etPlanExamDate.getText().toString().trim();
+        String difficulty = etPlanDifficulty.getText().toString().trim();
+        String topics = etPlanTopics.getText().toString().trim();
+        String confidence = etPlanConfidence.getText().toString().trim();
 
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        if (TextUtils.isEmpty(subject) || TextUtils.isEmpty(examDate)) {
+            Toast.makeText(getContext(), "Subject and exam date are required", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        addUserMessage("Generate a smart study plan for " + subject + " (exam: " + examDate + ").");
+        studyPlanOverlay.setVisibility(View.GONE);
+
+        new Thread(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL("http://10.0.2.2:5000/generate-study-plan");
+
+                conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setDoOutput(true);
-                conn.setConnectTimeout(4000);
-                conn.setReadTimeout(4000);
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(60000);
 
                 JSONObject jsonObject = new JSONObject();
-                jsonObject.put("topic", topic);
+                jsonObject.put("subject", subject);
+                jsonObject.put("exam_date", examDate);
+                jsonObject.put("difficulty", difficulty);
+                jsonObject.put("topics_left", topics);
+                jsonObject.put("confidence", confidence);
 
                 OutputStream os = conn.getOutputStream();
-                os.write(jsonObject.toString().getBytes());
+                os.write(jsonObject.toString().getBytes("UTF-8"));
                 os.flush();
                 os.close();
 
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(conn.getInputStream())
-                );
+                int responseCode = conn.getResponseCode();
+
+                BufferedReader reader;
+                if (responseCode >= 200 && responseCode < 300) {
+                    reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                } else {
+                    reader = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+                }
 
                 StringBuilder response = new StringBuilder();
                 String line;
-
                 while ((line = reader.readLine()) != null) {
                     response.append(line);
                 }
-
                 reader.close();
 
-                JSONObject result = new JSONObject(response.toString());
-                String roadmap = result.getString("roadmap");
+                if (responseCode >= 200 && responseCode < 300) {
+                    JSONObject result = new JSONObject(response.toString());
+                    String plan = result.getString("plan");
 
-                saveRoadmap(topic, roadmap);
+                    requireActivity().runOnUiThread(() -> {
+                        addAiMessage(plan);
+                        etPlanSubject.setText("");
+                        etPlanExamDate.setText("");
+                        etPlanDifficulty.setText("");
+                        etPlanTopics.setText("");
+                        etPlanConfidence.setText("");
+                    });
+                } else {
+                    String errorMessage = "I couldn’t generate the study plan right now.";
+                    try {
+                        JSONObject result = new JSONObject(response.toString());
+                        if (result.has("error")) {
+                            errorMessage = result.getString("error");
+                        }
+                    } catch (Exception ignored) {
+                    }
 
-                requireActivity().runOnUiThread(() -> {
-                    tvAiRecommendation.setText(roadmap);
-                    loadHistory();
-                });
+                    String finalError = errorMessage;
+                    requireActivity().runOnUiThread(() ->
+                            addAiMessage("Backend error: " + finalError)
+                    );
+                }
 
             } catch (Exception e) {
-                String fallbackRoadmap = buildLocalRoadmap(topic);
-                String finalRoadmap = "Backend unavailable — using offline AI Coach mode.\n\n" + fallbackRoadmap;
+                requireActivity().runOnUiThread(() ->
+                        addAiMessage("Couldn’t reach the backend right now. Please make sure the backend is running.")
+                );
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+        }).start();
+    }
 
-                saveRoadmap(topic, finalRoadmap);
+    private void askStudyBackend(String prompt) {
+        new Thread(() -> {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL("http://10.0.2.2:5000/ask-study");
 
-                requireActivity().runOnUiThread(() -> {
-                    tvAiRecommendation.setText(finalRoadmap);
-                    loadHistory();
-                    Toast.makeText(getContext(), "Backend is off, fallback mode used", Toast.LENGTH_SHORT).show();
-                });
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(60000);
+
+                JSONObject jsonObject = new JSONObject();
+                jsonObject.put("prompt", prompt);
+
+                OutputStream os = conn.getOutputStream();
+                os.write(jsonObject.toString().getBytes("UTF-8"));
+                os.flush();
+                os.close();
+
+                int responseCode = conn.getResponseCode();
+
+                BufferedReader reader;
+                if (responseCode >= 200 && responseCode < 300) {
+                    reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                } else {
+                    reader = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+                }
+
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+
+                if (responseCode >= 200 && responseCode < 300) {
+                    JSONObject result = new JSONObject(response.toString());
+                    String answer = result.getString("answer");
+
+                    requireActivity().runOnUiThread(() -> addAiMessage(answer));
+                } else {
+                    String errorMessage = "I couldn’t get a study answer right now.";
+                    try {
+                        JSONObject result = new JSONObject(response.toString());
+                        if (result.has("error")) {
+                            errorMessage = result.getString("error");
+                        }
+                    } catch (Exception ignored) {
+                    }
+
+                    String finalError = errorMessage;
+                    requireActivity().runOnUiThread(() ->
+                            addAiMessage("Backend error: " + finalError)
+                    );
+                }
+
+            } catch (Exception e) {
+                requireActivity().runOnUiThread(() ->
+                        addAiMessage("Couldn’t reach the backend right now. Please make sure the backend is running.")
+                );
+            } finally {
+                if (conn != null) conn.disconnect();
             }
         }).start();
     }
 
     private void uploadPdfAndSummarize() {
         new Thread(() -> {
+            HttpURLConnection conn = null;
             try {
                 String boundary = "----StudySmartBoundary" + UUID.randomUUID().toString().replace("-", "");
                 URL url = new URL("http://10.0.2.2:5000/summarize-pdf");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn = (HttpURLConnection) url.openConnection();
 
                 conn.setRequestMethod("POST");
                 conn.setDoOutput(true);
+                conn.setConnectTimeout(10000);
+                conn.setReadTimeout(60000);
                 conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
 
                 DataOutputStream request = new DataOutputStream(conn.getOutputStream());
 
-                String fileName = "lecture.pdf";
-
                 request.writeBytes("--" + boundary + "\r\n");
-                request.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"\r\n");
+                request.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\"" + selectedPdfName + "\"\r\n");
                 request.writeBytes("Content-Type: application/pdf\r\n\r\n");
 
                 InputStream inputStream = requireContext().getContentResolver().openInputStream(selectedPdfUri);
@@ -203,154 +326,115 @@ public class AiCoachFragment extends Fragment {
                 request.flush();
                 request.close();
 
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(conn.getInputStream())
-                );
+                int responseCode = conn.getResponseCode();
+
+                BufferedReader reader;
+                if (responseCode >= 200 && responseCode < 300) {
+                    reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                } else {
+                    reader = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+                }
 
                 StringBuilder response = new StringBuilder();
                 String line;
-
                 while ((line = reader.readLine()) != null) {
                     response.append(line);
                 }
-
                 reader.close();
 
-                JSONObject result = new JSONObject(response.toString());
-                String summary = result.getString("summary");
+                if (responseCode >= 200 && responseCode < 300) {
+                    JSONObject result = new JSONObject(response.toString());
+                    String summary = result.getString("summary");
 
-                requireActivity().runOnUiThread(() ->
-                        tvPdfSummary.setText(summary)
-                );
+                    requireActivity().runOnUiThread(() -> {
+                        addAiMessage(summary);
+                        selectedPdfUri = null;
+                        selectedPdfName = "No PDF selected";
+                        tvSelectedPdf.setText("No PDF selected");
+                    });
+                } else {
+                    String errorMessage = "I couldn’t summarize that PDF right now.";
+                    try {
+                        JSONObject result = new JSONObject(response.toString());
+                        if (result.has("error")) {
+                            errorMessage = result.getString("error");
+                        }
+                    } catch (Exception ignored) {
+                    }
+
+                    String finalError = errorMessage;
+                    requireActivity().runOnUiThread(() ->
+                            addAiMessage("Backend error: " + finalError)
+                    );
+                }
 
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() ->
-                        Toast.makeText(getContext(), "PDF summary failed: " + e.getMessage(), Toast.LENGTH_LONG).show()
+                        addAiMessage("Couldn’t reach the backend right now. Please make sure the backend is running.")
                 );
+            } finally {
+                if (conn != null) conn.disconnect();
             }
         }).start();
     }
 
-    private void saveRoadmap(String topic, String roadmap) {
-        String createdAt = new SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(new Date());
-        databaseHelper.insertAiRoadmap(topic, roadmap, createdAt);
+    private void addUserMessage(String text) {
+        addMessageBubble(text, true);
     }
 
-    private String buildLocalRoadmap(String topic) {
-        String lowerTopic = topic.toLowerCase();
-
-        if (lowerTopic.contains("chemistry")) {
-            return "1) Review the key concepts of " + topic + " for 25 minutes.\n\n"
-                    + "2) Focus on the most important reactions and definitions for 20 minutes.\n\n"
-                    + "3) Solve 4 practice questions.\n\n"
-                    + "4) Take a 10-minute break.\n\n"
-                    + "5) Summarize the hardest ideas in your own words.";
-        } else if (lowerTopic.contains("history")) {
-            return "1) Review the main timeline of " + topic + " for 20 minutes.\n\n"
-                    + "2) Highlight the major causes and consequences.\n\n"
-                    + "3) Write a short summary paragraph.\n\n"
-                    + "4) Take a 10-minute break.\n\n"
-                    + "5) Practice one likely exam question.";
-        } else if (lowerTopic.contains("law")) {
-            return "1) Review the main principles of " + topic + ".\n\n"
-                    + "2) Identify the most important rules and examples.\n\n"
-                    + "3) Practice applying one concept to a short case.\n\n"
-                    + "4) Take a 10-minute break.\n\n"
-                    + "5) Recap the key legal terms.";
-        } else if (lowerTopic.contains("math") || lowerTopic.contains("calculus")) {
-            return "1) Review the main formulas of " + topic + " for 20 minutes.\n\n"
-                    + "2) Solve 3 guided examples step by step.\n\n"
-                    + "3) Solve 3 more questions on your own.\n\n"
-                    + "4) Take a 10-minute break.\n\n"
-                    + "5) Revisit mistakes and note the weak areas.";
-        } else {
-            return "1) Study " + topic + " for 25 minutes.\n\n"
-                    + "2) Split it into 2 or 3 subtopics.\n\n"
-                    + "3) Practice with examples or short questions.\n\n"
-                    + "4) Take a 10-minute break.\n\n"
-                    + "5) Summarize the most important ideas.";
-        }
+    private void addAiMessage(String text) {
+        addMessageBubble(text, false);
     }
 
-    private void loadHistory() {
-        aiHistoryContainer.removeAllViews();
-
-        ArrayList<AiRoadmap> roadmapList = databaseHelper.getAllAiRoadmaps();
-
-        if (roadmapList.isEmpty()) {
-            TextView emptyText = new TextView(getContext());
-            emptyText.setText("No saved AI roadmaps yet");
-            emptyText.setTextSize(15);
-            emptyText.setTextColor(0xFF8B8E99);
-            emptyText.setPadding(0, dpToPx(12), 0, 0);
-            aiHistoryContainer.addView(emptyText);
-            return;
-        }
-
-        for (AiRoadmap roadmap : roadmapList) {
-            addHistoryCard(roadmap);
-        }
-    }
-
-    private void addHistoryCard(AiRoadmap aiRoadmap) {
-        LinearLayout card = new LinearLayout(getContext());
-        LinearLayout.LayoutParams cardParams = new LinearLayout.LayoutParams(
+    private void addMessageBubble(String text, boolean isUser) {
+        LinearLayout row = new LinearLayout(getContext());
+        row.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-        );
-        cardParams.topMargin = dpToPx(14);
-        card.setLayoutParams(cardParams);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dpToPx(14), dpToPx(14), dpToPx(14), dpToPx(14));
-        card.setBackgroundResource(R.drawable.ai_soft_purple_bg);
+        ));
+        row.setGravity(isUser ? Gravity.END : Gravity.START);
 
-        TextView topicText = new TextView(getContext());
-        topicText.setText(aiRoadmap.getTopic());
-        topicText.setTextSize(16);
-        topicText.setTextColor(0xFF7A35E8);
-        topicText.setTypeface(null, android.graphics.Typeface.BOLD);
+        TextView bubble = new TextView(getContext());
+        bubble.setText(text);
+        bubble.setTextSize(15f);
+        bubble.setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12));
+        bubble.setMaxWidth(dpToPx(280));
+        bubble.setLineSpacing(0f, 1.15f);
 
-        TextView dateText = new TextView(getContext());
-        dateText.setText(aiRoadmap.getCreatedAt());
-        dateText.setTextSize(12);
-        dateText.setTextColor(0xFF8B8E99);
-        dateText.setPadding(0, dpToPx(6), 0, 0);
-
-        TextView roadmapText = new TextView(getContext());
-        roadmapText.setText(aiRoadmap.getRoadmap());
-        roadmapText.setTextSize(14);
-        roadmapText.setTextColor(0xFF111111);
-        roadmapText.setPadding(0, dpToPx(10), 0, 0);
-
-        TextView deleteText = new TextView(getContext());
-        deleteText.setText("Delete");
-        deleteText.setTextSize(13);
-        deleteText.setTextColor(0xFFFFFFFF);
-        deleteText.setTypeface(null, android.graphics.Typeface.BOLD);
-        deleteText.setBackgroundResource(R.drawable.button_dark_rounded);
-        deleteText.setPadding(dpToPx(14), dpToPx(8), dpToPx(14), dpToPx(8));
-
-        LinearLayout.LayoutParams deleteParams = new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams bubbleParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
         );
-        deleteParams.topMargin = dpToPx(12);
-        deleteText.setLayoutParams(deleteParams);
+        bubbleParams.topMargin = dpToPx(10);
+        bubble.setLayoutParams(bubbleParams);
 
-        deleteText.setOnClickListener(v -> {
-            boolean deleted = databaseHelper.deleteAiRoadmap(aiRoadmap.getId());
-            if (deleted) {
-                loadHistory();
-                Toast.makeText(getContext(), "Roadmap deleted", Toast.LENGTH_SHORT).show();
+        if (isUser) {
+            bubble.setBackgroundResource(R.drawable.ai_user_bubble);
+            bubble.setTextColor(Color.WHITE);
+        } else {
+            bubble.setBackgroundResource(R.drawable.ai_bot_bubble);
+            bubble.setTextColor(Color.parseColor("#111111"));
+        }
+
+        row.addView(bubble);
+        chatContainer.addView(row);
+
+        chatScrollView.post(() -> chatScrollView.fullScroll(View.FOCUS_DOWN));
+    }
+
+    private String getFileName(Uri uri) {
+        String result = "lecture.pdf";
+        try (android.database.Cursor cursor = requireContext().getContentResolver()
+                .query(uri, null, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) {
+                int nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (nameIndex >= 0) {
+                    result = cursor.getString(nameIndex);
+                }
             }
-        });
-
-        card.addView(topicText);
-        card.addView(dateText);
-        card.addView(roadmapText);
-        card.addView(deleteText);
-
-        aiHistoryContainer.addView(card);
+        } catch (Exception ignored) {
+        }
+        return result;
     }
 
     private int dpToPx(int dp) {
