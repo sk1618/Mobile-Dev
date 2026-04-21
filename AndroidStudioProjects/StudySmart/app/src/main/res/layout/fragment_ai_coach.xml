@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/screenBackground">
@@ -41,8 +42,8 @@
             android:layout_height="0dp"
             android:layout_marginTop="14dp"
             android:layout_weight="1"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp">
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
 
             <LinearLayout
                 android:id="@+id/chatContainer"
@@ -101,7 +102,6 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Drop-up menu -->
     <LinearLayout
         android:id="@+id/plusMenuLayout"
         android:layout_width="220dp"
@@ -139,7 +139,6 @@
             android:textStyle="bold" />
     </LinearLayout>
 
-    <!-- Hidden study plan form -->
     <ScrollView
         android:id="@+id/studyPlanOverlay"
         android:layout_width="match_parent"
@@ -165,13 +164,38 @@
                 android:textSize="20sp"
                 android:textStyle="bold" />
 
+            <com.google.android.material.textfield.TextInputLayout
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                app:boxCornerRadiusBottomEnd="16dp"
+                app:boxCornerRadiusBottomStart="16dp"
+                app:boxCornerRadiusTopEnd="16dp"
+                app:boxCornerRadiusTopStart="16dp"
+                app:hintEnabled="false">
+
+                <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                    android:id="@+id/etPlanSubject"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:completionThreshold="1"
+                    android:hint="Choose subject"
+                    android:inputType="none"
+                    android:paddingStart="12dp"
+                    android:paddingEnd="12dp"
+                    android:textColor="@color/textPrimary"
+                    android:textColorHint="@color/textSecondary" />
+            </com.google.android.material.textfield.TextInputLayout>
+
             <EditText
-                android:id="@+id/etPlanSubject"
+                android:id="@+id/etPlanPrepStartDate"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
-                android:layout_marginTop="14dp"
+                android:layout_marginTop="10dp"
                 android:background="@drawable/ai_input_bg"
-                android:hint="Subject"
+                android:focusable="false"
+                android:hint="Choose preparation start date"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
                 android:textColor="@color/textPrimary"
@@ -183,31 +207,35 @@
                 android:layout_height="52dp"
                 android:layout_marginTop="10dp"
                 android:background="@drawable/ai_input_bg"
-                android:hint="Exam date (yyyy-MM-dd)"
+                android:focusable="false"
+                android:hint="Choose exam date"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
                 android:textColor="@color/textPrimary"
                 android:textColorHint="@color/textSecondary" />
 
             <EditText
-                android:id="@+id/etPlanDifficulty"
+                android:id="@+id/etPlanCoverage"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="70dp"
                 android:layout_marginTop="10dp"
                 android:background="@drawable/ai_input_bg"
-                android:hint="Difficulty (Easy / Medium / Hard)"
+                android:gravity="top"
+                android:hint="Specific units, lessons, and concepts to study"
                 android:paddingStart="16dp"
+                android:paddingTop="14dp"
                 android:paddingEnd="16dp"
+                android:paddingBottom="14dp"
                 android:textColor="@color/textPrimary"
                 android:textColorHint="@color/textSecondary" />
 
             <EditText
-                android:id="@+id/etPlanTopics"
+                android:id="@+id/etPlanWeakTopics"
                 android:layout_width="match_parent"
                 android:layout_height="52dp"
                 android:layout_marginTop="10dp"
                 android:background="@drawable/ai_input_bg"
-                android:hint="Topics or chapters left"
+                android:hint="Weak topics (optional)"
                 android:paddingStart="16dp"
                 android:paddingEnd="16dp"
                 android:textColor="@color/textPrimary"

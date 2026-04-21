@@ -1,14 +1,16 @@
 package com.example.studysmart;
 
+import android.app.DatePickerDialog;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.OpenableColumns;
 import android.text.TextUtils;
 import android.view.Gravity;
-import android.view.View;
 import android.view.LayoutInflater;
+import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -19,6 +21,8 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.widget.NestedScrollView;
 import androidx.fragment.app.Fragment;
 
+import com.google.android.material.textfield.MaterialAutoCompleteTextView;
+
 import org.json.JSONObject;
 
 import java.io.BufferedReader;
@@ -28,11 +32,24 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Locale;
 import java.util.UUID;
 
 public class AiCoachFragment extends Fragment {
 
-    private EditText etAiPrompt, etPlanSubject, etPlanExamDate, etPlanDifficulty, etPlanTopics, etPlanConfidence;
+    private static final String BASE_URL = "http://10.0.2.2:5000";
+
+    private EditText etAiPrompt;
+    private EditText etPlanPrepStartDate;
+    private EditText etPlanExamDate;
+    private EditText etPlanCoverage;
+    private EditText etPlanWeakTopics;
+    private EditText etPlanConfidence;
+
+    private MaterialAutoCompleteTextView etPlanSubject;
+
     private LinearLayout chatContainer;
     private NestedScrollView chatScrollView;
     private TextView tvSelectedPdf;
@@ -43,6 +60,7 @@ public class AiCoachFragment extends Fragment {
     private String selectedPdfName = "No PDF selected";
 
     private ActivityResultLauncher<String> pdfPickerLauncher;
+    private DatabaseHelper databaseHelper;
 
     public AiCoachFragment() {
     }
@@ -57,7 +75,9 @@ public class AiCoachFragment extends Fragment {
                     if (uri != null) {
                         selectedPdfUri = uri;
                         selectedPdfName = getFileName(uri);
-                        tvSelectedPdf.setText("PDF attached: " + selectedPdfName);
+                        if (tvSelectedPdf != null) {
+                            tvSelectedPdf.setText("PDF attached: " + selectedPdfName);
+                        }
                     }
                 }
         );
@@ -71,9 +91,10 @@ public class AiCoachFragment extends Fragment {
 
         etAiPrompt = view.findViewById(R.id.etAiPrompt);
         etPlanSubject = view.findViewById(R.id.etPlanSubject);
+        etPlanPrepStartDate = view.findViewById(R.id.etPlanPrepStartDate);
         etPlanExamDate = view.findViewById(R.id.etPlanExamDate);
-        etPlanDifficulty = view.findViewById(R.id.etPlanDifficulty);
-        etPlanTopics = view.findViewById(R.id.etPlanTopics);
+        etPlanCoverage = view.findViewById(R.id.etPlanCoverage);
+        etPlanWeakTopics = view.findViewById(R.id.etPlanWeakTopics);
         etPlanConfidence = view.findViewById(R.id.etPlanConfidence);
 
         chatContainer = view.findViewById(R.id.chatContainer);
@@ -82,7 +103,14 @@ public class AiCoachFragment extends Fragment {
         plusMenuLayout = view.findViewById(R.id.plusMenuLayout);
         studyPlanOverlay = view.findViewById(R.id.studyPlanOverlay);
 
+        databaseHelper = new DatabaseHelper(requireContext());
+
+        setupSubjectDropdown();
+
         addAiMessage("Hi! I’m StudySmart AI. Ask me any study question, attach a lecture PDF, or use the + button for more actions.");
+
+        etPlanPrepStartDate.setOnClickListener(v -> showDatePicker(etPlanPrepStartDate));
+        etPlanExamDate.setOnClickListener(v -> showDatePicker(etPlanExamDate));
 
         view.findViewById(R.id.btnPlusMenu).setOnClickListener(v -> {
             if (plusMenuLayout.getVisibility() == View.VISIBLE) {
@@ -130,25 +158,74 @@ public class AiCoachFragment extends Fragment {
         return view;
     }
 
+    private void setupSubjectDropdown() {
+        ArrayList<String> subjects = databaseHelper.getAllTaskCategories();
+
+        if (subjects.isEmpty()) {
+            subjects.add("Study");
+        }
+
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                requireContext(),
+                android.R.layout.simple_list_item_1,
+                subjects
+        );
+
+        etPlanSubject.setAdapter(adapter);
+        etPlanSubject.setText(subjects.get(0), false);
+    }
+
+    private void showDatePicker(EditText target) {
+        Calendar calendar = Calendar.getInstance();
+
+        DatePickerDialog dialog = new DatePickerDialog(
+                requireContext(),
+                (view, year, month, dayOfMonth) -> {
+                    String formatted = String.format(
+                            Locale.getDefault(),
+                            "%04d-%02d-%02d",
+                            year,
+                            month + 1,
+                            dayOfMonth
+                    );
+                    target.setText(formatted);
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
+        );
+
+        dialog.show();
+    }
+
     private void generateStudyPlan() {
         String subject = etPlanSubject.getText().toString().trim();
+        String prepStartDate = etPlanPrepStartDate.getText().toString().trim();
         String examDate = etPlanExamDate.getText().toString().trim();
-        String difficulty = etPlanDifficulty.getText().toString().trim();
-        String topics = etPlanTopics.getText().toString().trim();
+        String studyScope = etPlanCoverage.getText().toString().trim();
+        String weakTopics = etPlanWeakTopics.getText().toString().trim();
         String confidence = etPlanConfidence.getText().toString().trim();
 
-        if (TextUtils.isEmpty(subject) || TextUtils.isEmpty(examDate)) {
-            Toast.makeText(getContext(), "Subject and exam date are required", Toast.LENGTH_SHORT).show();
+        if (TextUtils.isEmpty(subject)
+                || TextUtils.isEmpty(prepStartDate)
+                || TextUtils.isEmpty(examDate)
+                || TextUtils.isEmpty(studyScope)) {
+
+            Toast.makeText(
+                    getContext(),
+                    "Subject, preparation start date, exam date, and study scope are required",
+                    Toast.LENGTH_SHORT
+            ).show();
             return;
         }
 
-        addUserMessage("Generate a smart study plan for " + subject + " (exam: " + examDate + ").");
+        addUserMessage("Generate a smart study plan for " + subject + " from " + prepStartDate + " until " + examDate + ".");
         studyPlanOverlay.setVisibility(View.GONE);
 
         new Thread(() -> {
             HttpURLConnection conn = null;
             try {
-                URL url = new URL("http://10.0.2.2:5000/generate-study-plan");
+                URL url = new URL(BASE_URL + "/generate-study-plan");
 
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
@@ -159,9 +236,10 @@ public class AiCoachFragment extends Fragment {
 
                 JSONObject jsonObject = new JSONObject();
                 jsonObject.put("subject", subject);
+                jsonObject.put("prep_start_date", prepStartDate);
                 jsonObject.put("exam_date", examDate);
-                jsonObject.put("difficulty", difficulty);
-                jsonObject.put("topics_left", topics);
+                jsonObject.put("study_scope", studyScope);
+                jsonObject.put("weak_topics", weakTopics);
                 jsonObject.put("confidence", confidence);
 
                 OutputStream os = conn.getOutputStream();
@@ -187,35 +265,34 @@ public class AiCoachFragment extends Fragment {
 
                 if (responseCode >= 200 && responseCode < 300) {
                     JSONObject result = new JSONObject(response.toString());
-                    String plan = result.getString("plan");
+                    String rawPlan = result.getString("plan");
+                    String cleanPlan = normalizeAiText(rawPlan);
+
+                    saveStudyPlanAsTasks(subject, prepStartDate, examDate, cleanPlan);
 
                     requireActivity().runOnUiThread(() -> {
-                        addAiMessage(plan);
+                        addAiMessage(cleanPlan);
                         etPlanSubject.setText("");
+                        etPlanPrepStartDate.setText("");
                         etPlanExamDate.setText("");
-                        etPlanDifficulty.setText("");
-                        etPlanTopics.setText("");
+                        etPlanCoverage.setText("");
+                        etPlanWeakTopics.setText("");
                         etPlanConfidence.setText("");
+                        Toast.makeText(getContext(), "Study plan added to planner and calendar", Toast.LENGTH_SHORT).show();
                     });
                 } else {
-                    String errorMessage = "I couldn’t generate the study plan right now.";
-                    try {
-                        JSONObject result = new JSONObject(response.toString());
-                        if (result.has("error")) {
-                            errorMessage = result.getString("error");
-                        }
-                    } catch (Exception ignored) {
-                    }
+                    final String backendText = response.length() > 0
+                            ? response.toString()
+                            : "Backend returned code " + responseCode;
 
-                    String finalError = errorMessage;
                     requireActivity().runOnUiThread(() ->
-                            addAiMessage("Backend error: " + finalError)
+                            addAiMessage("Backend error: " + backendText)
                     );
                 }
 
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() ->
-                        addAiMessage("Couldn’t reach the backend right now. Please make sure the backend is running.")
+                        addAiMessage("Couldn’t reach the backend right now. Please make sure the backend is running on 0.0.0.0:5000.")
                 );
             } finally {
                 if (conn != null) conn.disconnect();
@@ -223,11 +300,76 @@ public class AiCoachFragment extends Fragment {
         }).start();
     }
 
+    private void saveStudyPlanAsTasks(String subject, String prepStartDate, String examDate, String cleanPlan) {
+        String[] lines = cleanPlan.split("\\n");
+
+        Calendar calendar = parseDateToCalendar(prepStartDate);
+        Calendar examCal = parseDateToCalendar(examDate);
+
+        if (calendar == null) {
+            calendar = Calendar.getInstance();
+            calendar.add(Calendar.DAY_OF_MONTH, 1);
+        }
+
+        boolean validExamDate = examCal != null;
+        int addedCount = 0;
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) continue;
+            if (!trimmed.toLowerCase().startsWith("day")) continue;
+
+            if (validExamDate && calendar.after(examCal)) break;
+
+            String dueDate = String.format(
+                    Locale.getDefault(),
+                    "%04d-%02d-%02d",
+                    calendar.get(Calendar.YEAR),
+                    calendar.get(Calendar.MONTH) + 1,
+                    calendar.get(Calendar.DAY_OF_MONTH)
+            );
+
+            databaseHelper.insertTask(trimmed, subject, "Pending", dueDate);
+            calendar.add(Calendar.DAY_OF_MONTH, 1);
+            addedCount++;
+        }
+
+        if (addedCount == 0) {
+            String dueDate = String.format(
+                    Locale.getDefault(),
+                    "%04d-%02d-%02d",
+                    calendar.get(Calendar.YEAR),
+                    calendar.get(Calendar.MONTH) + 1,
+                    calendar.get(Calendar.DAY_OF_MONTH)
+            );
+
+            databaseHelper.insertTask("Study plan for " + subject, subject, "Pending", dueDate);
+        }
+    }
+
+    private Calendar parseDateToCalendar(String dateText) {
+        try {
+            String[] parts = dateText.split("-");
+            if (parts.length != 3) return null;
+
+            int year = Integer.parseInt(parts[0]);
+            int month = Integer.parseInt(parts[1]) - 1;
+            int day = Integer.parseInt(parts[2]);
+
+            Calendar calendar = Calendar.getInstance();
+            calendar.set(year, month, day, 0, 0, 0);
+            calendar.set(Calendar.MILLISECOND, 0);
+            return calendar;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private void askStudyBackend(String prompt) {
         new Thread(() -> {
             HttpURLConnection conn = null;
             try {
-                URL url = new URL("http://10.0.2.2:5000/ask-study");
+                URL url = new URL(BASE_URL + "/ask-study");
 
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("POST");
@@ -262,28 +404,22 @@ public class AiCoachFragment extends Fragment {
 
                 if (responseCode >= 200 && responseCode < 300) {
                     JSONObject result = new JSONObject(response.toString());
-                    String answer = result.getString("answer");
+                    String answer = normalizeAiText(result.getString("answer"));
 
                     requireActivity().runOnUiThread(() -> addAiMessage(answer));
                 } else {
-                    String errorMessage = "I couldn’t get a study answer right now.";
-                    try {
-                        JSONObject result = new JSONObject(response.toString());
-                        if (result.has("error")) {
-                            errorMessage = result.getString("error");
-                        }
-                    } catch (Exception ignored) {
-                    }
+                    final String backendText = response.length() > 0
+                            ? response.toString()
+                            : "Backend returned code " + responseCode;
 
-                    String finalError = errorMessage;
                     requireActivity().runOnUiThread(() ->
-                            addAiMessage("Backend error: " + finalError)
+                            addAiMessage("Backend error: " + backendText)
                     );
                 }
 
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() ->
-                        addAiMessage("Couldn’t reach the backend right now. Please make sure the backend is running.")
+                        addAiMessage("Couldn’t reach the backend right now. Please make sure the backend is running on 0.0.0.0:5000.")
                 );
             } finally {
                 if (conn != null) conn.disconnect();
@@ -296,7 +432,7 @@ public class AiCoachFragment extends Fragment {
             HttpURLConnection conn = null;
             try {
                 String boundary = "----StudySmartBoundary" + UUID.randomUUID().toString().replace("-", "");
-                URL url = new URL("http://10.0.2.2:5000/summarize-pdf");
+                URL url = new URL(BASE_URL + "/summarize-pdf");
                 conn = (HttpURLConnection) url.openConnection();
 
                 conn.setRequestMethod("POST");
@@ -344,7 +480,7 @@ public class AiCoachFragment extends Fragment {
 
                 if (responseCode >= 200 && responseCode < 300) {
                     JSONObject result = new JSONObject(response.toString());
-                    String summary = result.getString("summary");
+                    String summary = normalizeAiText(result.getString("summary"));
 
                     requireActivity().runOnUiThread(() -> {
                         addAiMessage(summary);
@@ -353,29 +489,56 @@ public class AiCoachFragment extends Fragment {
                         tvSelectedPdf.setText("No PDF selected");
                     });
                 } else {
-                    String errorMessage = "I couldn’t summarize that PDF right now.";
-                    try {
-                        JSONObject result = new JSONObject(response.toString());
-                        if (result.has("error")) {
-                            errorMessage = result.getString("error");
-                        }
-                    } catch (Exception ignored) {
-                    }
+                    final String backendText = response.length() > 0
+                            ? response.toString()
+                            : "Backend returned code " + responseCode;
 
-                    String finalError = errorMessage;
                     requireActivity().runOnUiThread(() ->
-                            addAiMessage("Backend error: " + finalError)
+                            addAiMessage("Backend error: " + backendText)
                     );
                 }
 
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() ->
-                        addAiMessage("Couldn’t reach the backend right now. Please make sure the backend is running.")
+                        addAiMessage("Couldn’t reach the backend right now. Please make sure the backend is running on 0.0.0.0:5000.")
                 );
             } finally {
                 if (conn != null) conn.disconnect();
             }
         }).start();
+    }
+
+    private String normalizeAiText(String text) {
+        if (text == null) return "";
+
+        String cleaned = text;
+        cleaned = cleaned.replace("**", "");
+        cleaned = cleaned.replace("###", "");
+        cleaned = cleaned.replace("##", "");
+        cleaned = cleaned.replace("#", "");
+        cleaned = cleaned.replace("•", "-");
+        cleaned = cleaned.replace("* ", "- ");
+        cleaned = cleaned.replace("  ", " ");
+        cleaned = cleaned.replaceAll("\\n{3,}", "\n\n");
+
+        String[] lines = cleaned.split("\\n");
+        StringBuilder builder = new StringBuilder();
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                builder.append("\n");
+                continue;
+            }
+
+            if (trimmed.toLowerCase().startsWith("day ")) {
+                builder.append(trimmed).append("\n\n");
+            } else {
+                builder.append(trimmed).append("\n");
+            }
+        }
+
+        return builder.toString().trim();
     }
 
     private void addUserMessage(String text) {
@@ -397,9 +560,10 @@ public class AiCoachFragment extends Fragment {
         TextView bubble = new TextView(getContext());
         bubble.setText(text);
         bubble.setTextSize(15f);
-        bubble.setPadding(dpToPx(16), dpToPx(12), dpToPx(16), dpToPx(12));
-        bubble.setMaxWidth(dpToPx(280));
-        bubble.setLineSpacing(0f, 1.15f);
+        bubble.setPadding(dpToPx(16), dpToPx(14), dpToPx(16), dpToPx(14));
+        bubble.setMaxWidth(dpToPx(290));
+        bubble.setLineSpacing(0f, 1.2f);
+        bubble.setTextIsSelectable(true);
 
         LinearLayout.LayoutParams bubbleParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,

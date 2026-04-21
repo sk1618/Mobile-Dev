@@ -12,11 +12,11 @@ import java.util.HashSet;
 public class EventDecorator implements DayViewDecorator {
 
     private final HashSet<CalendarDay> dates;
-    private final int circleColor;
+    private final int color;
 
-    public EventDecorator(HashSet<CalendarDay> dates, int circleColor) {
+    public EventDecorator(HashSet<CalendarDay> dates, int color) {
         this.dates = dates;
-        this.circleColor = circleColor;
+        this.color = color;
     }
 
     @Override
@@ -26,7 +26,7 @@ public class EventDecorator implements DayViewDecorator {
 
     @Override
     public void decorate(DayViewFacade view) {
-        view.addSpan(new CircleSpan(circleColor));
+        view.addSpan(new CircleSpan(color));
         view.addSpan(new ForegroundColorSpan(Color.WHITE));
     }
 }

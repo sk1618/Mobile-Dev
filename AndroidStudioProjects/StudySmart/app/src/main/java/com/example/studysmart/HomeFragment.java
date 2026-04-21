@@ -1,6 +1,8 @@
 package com.example.studysmart;
 
 import android.app.AlertDialog;
+import android.app.DatePickerDialog;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -11,7 +13,10 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.EditText;
+import android.widget.ImageButton;
+import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.fragment.app.Fragment;
 
@@ -38,9 +43,9 @@ import java.util.Locale;
 public class HomeFragment extends Fragment {
 
     private CountDownTimer countDownTimer;
-    private long timeLeftInMillis = 25 * 60 * 1000;
+    private long timeLeftInMillis = 25 * 60 * 1000L;
     private boolean timerRunning = false;
-    private long sessionStartMillis = 0;
+    private long sessionStartMillis = 0L;
 
     private DatabaseHelper databaseHelper;
 
@@ -49,10 +54,16 @@ public class HomeFragment extends Fragment {
     private TextView cardStudyTimeText, cardSubjectsText, cardProductivityText;
     private TextView cardNextExamText, cardNextExamTitleText;
     private TextView sessionTotalValue, sessionMinutesValue, sessionLastValue;
+    private TextView calendarSummaryText, selectedDateTitleText, selectedDateEventsText;
+
+    private ImageButton btnToggleCalendar;
+    private LinearLayout calendarBodyContainer;
 
     private MaterialAutoCompleteTextView subjectDropdown;
     private LineChart weeklyLineChart;
     private MaterialCalendarView academicCalendarView;
+
+    private boolean isCalendarExpanded = false;
 
     public HomeFragment() {
     }
@@ -62,6 +73,8 @@ public class HomeFragment extends Fragment {
                              Bundle savedInstanceState) {
 
         View view = inflater.inflate(R.layout.fragment_home, container, false);
+
+        databaseHelper = new DatabaseHelper(requireContext());
 
         greetingText = view.findViewById(R.id.greetingText);
         nameText = view.findViewById(R.id.nameText);
@@ -84,7 +97,11 @@ public class HomeFragment extends Fragment {
         weeklyLineChart = view.findViewById(R.id.weeklyLineChart);
         academicCalendarView = view.findViewById(R.id.academicCalendarView);
 
-        databaseHelper = new DatabaseHelper(getContext());
+        calendarSummaryText = view.findViewById(R.id.calendarSummaryText);
+        selectedDateTitleText = view.findViewById(R.id.selectedDateTitleText);
+        selectedDateEventsText = view.findViewById(R.id.selectedDateEventsText);
+        btnToggleCalendar = view.findViewById(R.id.btnToggleCalendar);
+        calendarBodyContainer = view.findViewById(R.id.calendarBodyContainer);
 
         setupGreeting();
         setupSubjectDropdown();
@@ -92,13 +109,32 @@ public class HomeFragment extends Fragment {
         updateTimerText();
         updateWeeklyTrendChart();
         loadCalendarDecorators();
+        updateCalendarSummary();
+        updateCalendarToggleIcon();
+
+        btnToggleCalendar.setOnClickListener(v -> toggleCalendar());
+
+        academicCalendarView.setOnDateChangedListener((widget, date, selected) -> {
+            String selectedDate = String.format(
+                    Locale.getDefault(),
+                    "%04d-%02d-%02d",
+                    date.getYear(),
+                    date.getMonth(),
+                    date.getDay()
+            );
+            showEventsForDate(selectedDate);
+        });
 
         view.findViewById(R.id.btnStartFocus).setOnClickListener(v -> {
-            if (!timerRunning) startTimer();
+            if (!timerRunning) {
+                startTimer();
+            }
         });
 
         view.findViewById(R.id.btnStopFocus).setOnClickListener(v -> {
-            if (timerRunning) stopAndSaveSession();
+            if (timerRunning) {
+                stopAndSaveSession();
+            }
         });
 
         view.findViewById(R.id.btnAddExam).setOnClickListener(v -> showAddExamDialog());
@@ -112,6 +148,7 @@ public class HomeFragment extends Fragment {
         refreshHomeData();
         updateWeeklyTrendChart();
         loadCalendarDecorators();
+        updateCalendarSummary();
     }
 
     private void setupGreeting() {
@@ -120,7 +157,7 @@ public class HomeFragment extends Fragment {
         greetingText.setText(greeting);
 
         SharedPreferences preferences = requireActivity()
-                .getSharedPreferences("StudySmartPrefs", android.content.Context.MODE_PRIVATE);
+                .getSharedPreferences("StudySmartPrefs", Context.MODE_PRIVATE);
 
         String loggedInEmail = preferences.getString("loggedInEmail", null);
 
@@ -134,10 +171,9 @@ public class HomeFragment extends Fragment {
 
     private void setupSubjectDropdown() {
         ArrayList<String> subjects = databaseHelper.getAllTaskCategories();
+
         if (subjects.isEmpty()) {
-            subjects.add("Organic Chemistry");
-            subjects.add("World History");
-            subjects.add("Business Law");
+            subjects.add("Study");
         }
 
         ArrayAdapter<String> adapter = new ArrayAdapter<>(
@@ -163,7 +199,9 @@ public class HomeFragment extends Fragment {
         int totalTasks = pendingCount + inProgressCount + completedCount;
 
         int productivity = 0;
-        if (totalTasks > 0) productivity = (completedCount * 100) / totalTasks;
+        if (totalTasks > 0) {
+            productivity = Math.round((completedCount * 100f) / totalTasks);
+        }
 
         cardStudyTimeText.setText(totalStudyMinutes + " min");
         cardSubjectsText.setText(String.valueOf(subjectCount));
@@ -175,8 +213,7 @@ public class HomeFragment extends Fragment {
 
         subGreetingText.setText("You've studied " + totalStudyMinutes + " min in total.");
 
-        int streakDays = databaseHelper.getStudyStreakDays();
-        streakChipText.setText(streakDays + " Days");
+        streakChipText.setText(databaseHelper.getNextExamDaysText());
 
         Exam nearestExam = databaseHelper.getNearestUpcomingExam();
         if (nearestExam != null) {
@@ -185,6 +222,79 @@ public class HomeFragment extends Fragment {
         } else {
             cardNextExamText.setText("No exam");
             cardNextExamTitleText.setText("Add one");
+        }
+    }
+
+    private void toggleCalendar() {
+        isCalendarExpanded = !isCalendarExpanded;
+        calendarBodyContainer.setVisibility(isCalendarExpanded ? View.VISIBLE : View.GONE);
+        updateCalendarToggleIcon();
+
+        if (isCalendarExpanded) {
+            Calendar calendar = Calendar.getInstance();
+            String today = String.format(
+                    Locale.getDefault(),
+                    "%04d-%02d-%02d",
+                    calendar.get(Calendar.YEAR),
+                    calendar.get(Calendar.MONTH) + 1,
+                    calendar.get(Calendar.DAY_OF_MONTH)
+            );
+            showEventsForDate(today);
+        }
+    }
+
+    private void updateCalendarToggleIcon() {
+        if (btnToggleCalendar == null) return;
+        btnToggleCalendar.setImageResource(
+                isCalendarExpanded ? android.R.drawable.arrow_up_float : android.R.drawable.arrow_down_float
+        );
+    }
+
+    private void updateCalendarSummary() {
+        ArrayList<CalendarEvent> events = databaseHelper.getAllCalendarEvents();
+
+        int exams = 0;
+        int pending = 0;
+        int completed = 0;
+
+        for (CalendarEvent event : events) {
+            if ("exam".equalsIgnoreCase(event.getType())) {
+                exams++;
+            } else if ("Completed".equalsIgnoreCase(event.getStatus())) {
+                completed++;
+            } else {
+                pending++;
+            }
+        }
+
+        calendarSummaryText.setText(exams + " exams • " + pending + " pending tasks • " + completed + " completed");
+    }
+
+    private void showEventsForDate(String dateString) {
+        ArrayList<CalendarEvent> events = databaseHelper.getAllCalendarEvents();
+        StringBuilder builder = new StringBuilder();
+        int count = 0;
+
+        for (CalendarEvent event : events) {
+            if (dateString.equals(event.getDate())) {
+                count++;
+
+                if ("exam".equalsIgnoreCase(event.getType())) {
+                    builder.append("Exam: ").append(event.getTitle()).append("\n");
+                } else if ("Completed".equalsIgnoreCase(event.getStatus())) {
+                    builder.append("Completed Task: ").append(event.getTitle()).append("\n");
+                } else {
+                    builder.append("Pending Task: ").append(event.getTitle()).append("\n");
+                }
+            }
+        }
+
+        selectedDateTitleText.setText("Agenda for " + dateString);
+
+        if (count == 0) {
+            selectedDateEventsText.setText("No events for this date");
+        } else {
+            selectedDateEventsText.setText(builder.toString().trim());
         }
     }
 
@@ -201,11 +311,11 @@ public class HomeFragment extends Fragment {
 
         for (CalendarEvent event : events) {
             try {
-                Date date = sdf.parse(event.getDate());
-                if (date == null) continue;
+                Date parsedDate = sdf.parse(event.getDate());
+                if (parsedDate == null) continue;
 
                 Calendar calendar = Calendar.getInstance();
-                calendar.setTime(date);
+                calendar.setTime(parsedDate);
 
                 CalendarDay day = CalendarDay.from(
                         calendar.get(Calendar.YEAR),
@@ -213,7 +323,7 @@ public class HomeFragment extends Fragment {
                         calendar.get(Calendar.DAY_OF_MONTH)
                 );
 
-                if ("exam".equals(event.getType())) {
+                if ("exam".equalsIgnoreCase(event.getType())) {
                     examDays.add(day);
                 } else if ("Completed".equalsIgnoreCase(event.getStatus())) {
                     completedDays.add(day);
@@ -227,9 +337,11 @@ public class HomeFragment extends Fragment {
         if (!pendingDays.isEmpty()) {
             academicCalendarView.addDecorator(new EventDecorator(pendingDays, Color.parseColor("#2D6AE3")));
         }
+
         if (!completedDays.isEmpty()) {
             academicCalendarView.addDecorator(new EventDecorator(completedDays, Color.parseColor("#2FA56C")));
         }
+
         if (!examDays.isEmpty()) {
             academicCalendarView.addDecorator(new EventDecorator(examDays, Color.parseColor("#F26A21")));
         }
@@ -265,26 +377,61 @@ public class HomeFragment extends Fragment {
     }
 
     private void showAddExamDialog() {
-        LayoutInflater inflater = LayoutInflater.from(getContext());
-        View dialogView = inflater.inflate(R.layout.dialog_add_exam, null);
+        View dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_add_exam, null);
 
         EditText editExamTitle = dialogView.findViewById(R.id.editExamTitle);
         EditText editExamDate = dialogView.findViewById(R.id.editExamDate);
 
-        new AlertDialog.Builder(getContext())
+        editExamDate.setFocusable(false);
+        editExamDate.setClickable(true);
+        editExamDate.setOnClickListener(v -> showExamDatePicker(editExamDate));
+
+        new AlertDialog.Builder(requireContext())
                 .setView(dialogView)
                 .setPositiveButton("Save", (dialog, which) -> {
                     String title = editExamTitle.getText().toString().trim();
                     String date = editExamDate.getText().toString().trim();
 
-                    if (TextUtils.isEmpty(title) || TextUtils.isEmpty(date)) return;
+                    if (TextUtils.isEmpty(title) || TextUtils.isEmpty(date)) {
+                        Toast.makeText(requireContext(), "Please fill all fields", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
 
-                    databaseHelper.insertExam(title, date);
-                    refreshHomeData();
-                    loadCalendarDecorators();
+                    boolean saved = databaseHelper.insertOrUpdateExam(title, date);
+                    if (saved) {
+                        refreshHomeData();
+                        loadCalendarDecorators();
+                        updateCalendarSummary();
+                        Toast.makeText(requireContext(), "Exam saved", Toast.LENGTH_SHORT).show();
+                    } else {
+                        Toast.makeText(requireContext(), "Could not save exam", Toast.LENGTH_SHORT).show();
+                    }
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
+    }
+
+    private void showExamDatePicker(EditText target) {
+        Calendar calendar = Calendar.getInstance();
+
+        DatePickerDialog dialog = new DatePickerDialog(
+                requireContext(),
+                (view, year, month, dayOfMonth) -> {
+                    String formatted = String.format(
+                            Locale.getDefault(),
+                            "%04d-%02d-%02d",
+                            year,
+                            month + 1,
+                            dayOfMonth
+                    );
+                    target.setText(formatted);
+                },
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
+        );
+
+        dialog.show();
     }
 
     private void startTimer() {
@@ -302,23 +449,27 @@ public class HomeFragment extends Fragment {
             public void onFinish() {
                 timerRunning = false;
                 saveStudySession(25);
-                timeLeftInMillis = 25 * 60 * 1000;
+                timeLeftInMillis = 25 * 60 * 1000L;
                 updateTimerText();
             }
         }.start();
     }
 
     private void stopAndSaveSession() {
-        if (countDownTimer != null) countDownTimer.cancel();
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+        }
 
         timerRunning = false;
 
         long elapsedMillis = System.currentTimeMillis() - sessionStartMillis;
-        int durationMinutes = (int) (elapsedMillis / 60000);
-        if (durationMinutes <= 0) durationMinutes = 1;
+        int durationMinutes = (int) (elapsedMillis / 60000L);
+        if (durationMinutes <= 0) {
+            durationMinutes = 1;
+        }
 
         saveStudySession(durationMinutes);
-        timeLeftInMillis = 25 * 60 * 1000;
+        timeLeftInMillis = 25 * 60 * 1000L;
         updateTimerText();
     }
 
@@ -330,8 +481,8 @@ public class HomeFragment extends Fragment {
     }
 
     private void updateTimerText() {
-        int minutes = (int) (timeLeftInMillis / 1000) / 60;
-        int seconds = (int) (timeLeftInMillis / 1000) % 60;
+        int minutes = (int) (timeLeftInMillis / 1000L) / 60;
+        int seconds = (int) (timeLeftInMillis / 1000L) % 60;
         focusTimerText.setText(String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds));
     }
 
@@ -341,13 +492,9 @@ public class HomeFragment extends Fragment {
 
         ArrayList<StudySession> sessions = databaseHelper.getAllStudySessions();
 
-        Calendar now = Calendar.getInstance();
-        Calendar startOfThisWeek = Calendar.getInstance();
-        startOfThisWeek.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
-        startOfThisWeek.set(Calendar.HOUR_OF_DAY, 0);
-        startOfThisWeek.set(Calendar.MINUTE, 0);
-        startOfThisWeek.set(Calendar.SECOND, 0);
-        startOfThisWeek.set(Calendar.MILLISECOND, 0);
+        Calendar startOfThisWeek = getStartOfWeek(0);
+        Calendar startOfNextWeek = (Calendar) startOfThisWeek.clone();
+        startOfNextWeek.add(Calendar.DAY_OF_YEAR, 7);
 
         Calendar startOfPrevWeek = (Calendar) startOfThisWeek.clone();
         startOfPrevWeek.add(Calendar.DAY_OF_YEAR, -7);
@@ -361,14 +508,12 @@ public class HomeFragment extends Fragment {
 
                 Calendar sessionCal = Calendar.getInstance();
                 sessionCal.setTime(sessionDate);
-                long sessionMillis = sessionCal.getTimeInMillis();
+                long millis = sessionCal.getTimeInMillis();
 
-                if (sessionMillis >= startOfThisWeek.getTimeInMillis()
-                        && sessionMillis <= now.getTimeInMillis()) {
+                if (millis >= startOfThisWeek.getTimeInMillis() && millis < startOfNextWeek.getTimeInMillis()) {
                     int index = mapDay(sessionCal.get(Calendar.DAY_OF_WEEK));
                     currentWeek[index] += session.getDurationMinutes();
-                } else if (sessionMillis >= startOfPrevWeek.getTimeInMillis()
-                        && sessionMillis < startOfThisWeek.getTimeInMillis()) {
+                } else if (millis >= startOfPrevWeek.getTimeInMillis() && millis < startOfThisWeek.getTimeInMillis()) {
                     int index = mapDay(sessionCal.get(Calendar.DAY_OF_WEEK));
                     previousWeek[index] += session.getDurationMinutes();
                 }
@@ -377,7 +522,9 @@ public class HomeFragment extends Fragment {
         }
 
         ArrayList<Entry> entries = new ArrayList<>();
-        for (int i = 0; i < 7; i++) entries.add(new Entry(i, currentWeek[i]));
+        for (int i = 0; i < 7; i++) {
+            entries.add(new Entry(i, currentWeek[i]));
+        }
 
         LineDataSet dataSet = new LineDataSet(entries, "Weekly Trend");
         dataSet.setColor(Color.parseColor("#0B1026"));
@@ -420,18 +567,38 @@ public class HomeFragment extends Fragment {
 
         int currentTotal = 0;
         int previousTotal = 0;
+
         for (int value : currentWeek) currentTotal += value;
         for (int value : previousWeek) previousTotal += value;
 
         String trendText;
-        if (previousTotal == 0 && currentTotal > 0) trendText = "+100%";
-        else if (previousTotal == 0) trendText = "+0%";
-        else {
+        if (previousTotal == 0 && currentTotal > 0) {
+            trendText = "+100%";
+        } else if (previousTotal == 0) {
+            trendText = "+0%";
+        } else {
             int percent = Math.round(((currentTotal - previousTotal) * 100f) / previousTotal);
             trendText = (percent >= 0 ? "+" : "") + percent + "%";
         }
 
         trendPillText.setText(trendText);
+    }
+
+    private Calendar getStartOfWeek(int weekOffset) {
+        Calendar calendar = Calendar.getInstance();
+        calendar.setFirstDayOfWeek(Calendar.MONDAY);
+
+        while (calendar.get(Calendar.DAY_OF_WEEK) != Calendar.MONDAY) {
+            calendar.add(Calendar.DAY_OF_MONTH, -1);
+        }
+
+        calendar.add(Calendar.WEEK_OF_YEAR, weekOffset);
+        calendar.set(Calendar.HOUR_OF_DAY, 0);
+        calendar.set(Calendar.MINUTE, 0);
+        calendar.set(Calendar.SECOND, 0);
+        calendar.set(Calendar.MILLISECOND, 0);
+
+        return calendar;
     }
 
     private int mapDay(int dayOfWeek) {
@@ -447,6 +614,8 @@ public class HomeFragment extends Fragment {
     @Override
     public void onDestroyView() {
         super.onDestroyView();
-        if (countDownTimer != null) countDownTimer.cancel();
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+        }
     }
 }

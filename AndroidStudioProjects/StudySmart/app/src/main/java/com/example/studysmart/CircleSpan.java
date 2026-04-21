@@ -15,20 +15,24 @@ public class CircleSpan implements LineBackgroundSpan {
     @Override
     public void drawBackground(Canvas canvas, Paint paint,
                                int left, int right, int top, int baseline, int bottom,
-                               CharSequence text, int start, int end, int lineNum) {
+                               CharSequence text, int start, int end, int lineNumber) {
 
         int oldColor = paint.getColor();
+        Paint.Style oldStyle = paint.getStyle();
 
         paint.setColor(color);
-        paint.setAntiAlias(true);
+        paint.setStyle(Paint.Style.FILL);
 
         float cx = (left + right) / 2f;
         float cy = (top + bottom) / 2f;
-        float radius = Math.min(right - left, bottom - top) / 2.8f;
+
+        // MUCH bigger circle
+        float radius = 30f;
 
         canvas.drawCircle(cx, cy, radius, paint);
 
         paint.setColor(oldColor);
+        paint.setStyle(oldStyle);
     }
 }
 

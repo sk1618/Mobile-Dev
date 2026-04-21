@@ -261,8 +261,15 @@ public class AlertsFragment extends Fragment {
     }
 
     private void setSelectedFilterStyle(TextView tab) {
-        tab.setBackgroundResource(R.drawable.planner_tab_selected);
         tab.setTextColor(0xFFFFFFFF);
+
+        if (tab == filterPending) {
+            tab.setBackgroundResource(R.drawable.tab_pending_bg);
+        } else if (tab == filterDone) {
+            tab.setBackgroundResource(R.drawable.tab_done_bg);
+        } else {
+            tab.setBackgroundResource(R.drawable.planner_tab_selected);
+        }
     }
 
     private int dpToPx(int dp) {

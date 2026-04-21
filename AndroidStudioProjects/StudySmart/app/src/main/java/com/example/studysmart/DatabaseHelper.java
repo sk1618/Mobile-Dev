@@ -6,21 +6,16 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 
-import java.util.ArrayList;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
 
-import android.content.ContentValues;
-import android.database.Cursor;
-import android.database.sqlite.SQLiteDatabase;
-import java.util.ArrayList;
-
 public class DatabaseHelper extends SQLiteOpenHelper {
 
     private static final String DATABASE_NAME = "studysmart.db";
-    private static final int DATABASE_VERSION = 10;
+    private static final int DATABASE_VERSION = 11;
 
     // Tasks table
     public static final String TABLE_TASKS = "tasks";
@@ -29,6 +24,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_CATEGORY = "category";
     public static final String COLUMN_PRIORITY = "priority";
     public static final String COLUMN_STATUS = "status";
+    public static final String COLUMN_DUE_DATE = "due_date";
 
     // Users table
     public static final String TABLE_USERS = "users";
@@ -64,16 +60,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_EXAM_TITLE = "exam_title";
     public static final String COLUMN_EXAM_DATE = "exam_date";
 
-    // AI Study Plans
+    // AI Study Plans table
     public static final String TABLE_AI_STUDY_PLANS = "ai_study_plans";
     public static final String COLUMN_PLAN_ID = "plan_id";
     public static final String COLUMN_PLAN_SUBJECT = "plan_subject";
     public static final String COLUMN_PLAN_EXAM_DATE = "plan_exam_date";
     public static final String COLUMN_PLAN_TEXT = "plan_text";
     public static final String COLUMN_PLAN_CREATED_AT = "plan_created_at";
-
-    // Due Date
-    public static final String COLUMN_DUE_DATE = "due_date";
 
     public DatabaseHelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -85,6 +78,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, " +
                 COLUMN_TITLE + " TEXT, " +
                 COLUMN_CATEGORY + " TEXT, " +
+                COLUMN_PRIORITY + " TEXT, " +
                 COLUMN_STATUS + " TEXT, " +
                 COLUMN_DUE_DATE + " TEXT)";
 
@@ -145,7 +139,8 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         onCreate(db);
     }
 
-    // TASK METHODS
+    // -------------------- TASK METHODS --------------------
+
     public boolean insertTask(String title, String category, String priority) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -153,6 +148,19 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_CATEGORY, category);
         values.put(COLUMN_PRIORITY, priority);
         values.put(COLUMN_STATUS, "Pending");
+        values.put(COLUMN_DUE_DATE, "");
+        long result = db.insert(TABLE_TASKS, null, values);
+        return result != -1;
+    }
+
+    public boolean insertTask(String title, String category, String status, String dueDate) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_TITLE, title);
+        values.put(COLUMN_CATEGORY, category);
+        values.put(COLUMN_PRIORITY, "");
+        values.put(COLUMN_STATUS, status);
+        values.put(COLUMN_DUE_DATE, dueDate);
         long result = db.insert(TABLE_TASKS, null, values);
         return result != -1;
     }
@@ -171,9 +179,35 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ID));
                 String title = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE));
                 String category = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CATEGORY));
-                String priority = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PRIORITY));
                 String taskStatus = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_STATUS));
-                taskList.add(new Task(id, title, category, priority, taskStatus));
+                String dueDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DUE_DATE));
+
+                taskList.add(new Task(id, title, category, taskStatus, dueDate));
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        return taskList;
+    }
+
+    public ArrayList<Task> getAllTasks() {
+        ArrayList<Task> taskList = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT * FROM " + TABLE_TASKS + " ORDER BY " + COLUMN_ID + " DESC",
+                null
+        );
+
+        if (cursor.moveToFirst()) {
+            do {
+                int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ID));
+                String title = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE));
+                String category = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CATEGORY));
+                String status = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_STATUS));
+                String dueDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DUE_DATE));
+
+                taskList.add(new Task(id, title, category, status, dueDate));
             } while (cursor.moveToNext());
         }
 
@@ -201,6 +235,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "SELECT COUNT(*) FROM " + TABLE_TASKS + " WHERE " + COLUMN_STATUS + " = ?",
                 new String[]{status}
         );
+
         int count = 0;
         if (cursor.moveToFirst()) {
             count = cursor.getInt(0);
@@ -212,6 +247,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public int getTotalTaskCount() {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM " + TABLE_TASKS, null);
+
         int count = 0;
         if (cursor.moveToFirst()) {
             count = cursor.getInt(0);
@@ -220,7 +256,46 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return count;
     }
 
-    // USER METHODS
+    public ArrayList<String> getAllTaskCategories() {
+        ArrayList<String> categories = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT DISTINCT " + COLUMN_CATEGORY +
+                        " FROM " + TABLE_TASKS +
+                        " WHERE " + COLUMN_CATEGORY + " IS NOT NULL AND TRIM(" + COLUMN_CATEGORY + ") != ''",
+                null
+        );
+
+        if (cursor.moveToFirst()) {
+            do {
+                categories.add(cursor.getString(0));
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        return categories;
+    }
+
+    public int getDistinctSubjectCount() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery(
+                "SELECT COUNT(DISTINCT " + COLUMN_CATEGORY + ") FROM " + TABLE_TASKS +
+                        " WHERE " + COLUMN_CATEGORY + " IS NOT NULL AND TRIM(" + COLUMN_CATEGORY + ") != ''",
+                null
+        );
+
+        int count = 0;
+        if (cursor.moveToFirst()) {
+            count = cursor.getInt(0);
+        }
+
+        cursor.close();
+        return count;
+    }
+
+    // -------------------- USER METHODS --------------------
+
     public boolean insertUser(String name, String email, String password) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -248,9 +323,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "SELECT * FROM " + TABLE_USERS + " WHERE " + COLUMN_EMAIL + " = ? AND " + COLUMN_PASSWORD + " = ?",
                 new String[]{email, password}
         );
-        boolean isValid = cursor.getCount() > 0;
+        boolean valid = cursor.getCount() > 0;
         cursor.close();
-        return isValid;
+        return valid;
     }
 
     public String getUserNameByEmail(String email) {
@@ -259,6 +334,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "SELECT " + COLUMN_NAME + " FROM " + TABLE_USERS + " WHERE " + COLUMN_EMAIL + " = ?",
                 new String[]{email}
         );
+
         String name = null;
         if (cursor.moveToFirst()) {
             name = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_NAME));
@@ -273,11 +349,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_NAME, newName);
         values.put(COLUMN_EMAIL, newEmail);
         values.put(COLUMN_PASSWORD, newPassword);
+
         int result = db.update(TABLE_USERS, values, COLUMN_EMAIL + " = ?", new String[]{oldEmail});
         return result > 0;
     }
 
-    // REMINDER METHODS
+    // -------------------- REMINDER METHODS --------------------
+
     public boolean insertReminder(String title, String date, String time) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -285,6 +363,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         values.put(COLUMN_REMINDER_DATE, date);
         values.put(COLUMN_REMINDER_TIME, time);
         values.put(COLUMN_REMINDER_DONE, 0);
+
         long result = db.insert(TABLE_REMINDERS, null, values);
         return result != -1;
     }
@@ -294,14 +373,16 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor;
 
-        if (filter.equals("Pending")) {
+        if ("Pending".equals(filter)) {
             cursor = db.rawQuery(
-                    "SELECT * FROM " + TABLE_REMINDERS + " WHERE " + COLUMN_REMINDER_DONE + " = 0 ORDER BY " + COLUMN_REMINDER_ID + " DESC",
+                    "SELECT * FROM " + TABLE_REMINDERS +
+                            " WHERE " + COLUMN_REMINDER_DONE + " = 0 ORDER BY " + COLUMN_REMINDER_ID + " DESC",
                     null
             );
-        } else if (filter.equals("Done")) {
+        } else if ("Done".equals(filter)) {
             cursor = db.rawQuery(
-                    "SELECT * FROM " + TABLE_REMINDERS + " WHERE " + COLUMN_REMINDER_DONE + " = 1 ORDER BY " + COLUMN_REMINDER_ID + " DESC",
+                    "SELECT * FROM " + TABLE_REMINDERS +
+                            " WHERE " + COLUMN_REMINDER_DONE + " = 1 ORDER BY " + COLUMN_REMINDER_ID + " DESC",
                     null
             );
         } else {
@@ -318,6 +399,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 String date = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_REMINDER_DATE));
                 String time = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_REMINDER_TIME));
                 int isDone = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_REMINDER_DONE));
+
                 reminderList.add(new Reminder(id, title, date, time, isDone));
             } while (cursor.moveToNext());
         }
@@ -330,6 +412,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(COLUMN_REMINDER_DONE, isDone);
+
         int result = db.update(TABLE_REMINDERS, values, COLUMN_REMINDER_ID + " = ?", new String[]{String.valueOf(reminderId)});
         return result > 0;
     }
@@ -343,6 +426,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public int getReminderCount() {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM " + TABLE_REMINDERS, null);
+
         int count = 0;
         if (cursor.moveToFirst()) {
             count = cursor.getInt(0);
@@ -357,6 +441,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 "SELECT COUNT(*) FROM " + TABLE_REMINDERS + " WHERE " + COLUMN_REMINDER_DONE + " = 1",
                 null
         );
+
         int count = 0;
         if (cursor.moveToFirst()) {
             count = cursor.getInt(0);
@@ -365,12 +450,14 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return count;
     }
 
-    // STUDY SESSION METHODS
+    // -------------------- STUDY SESSION METHODS --------------------
+
     public boolean insertStudySession(int durationMinutes, String sessionDate) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
         values.put(COLUMN_SESSION_DURATION, durationMinutes);
         values.put(COLUMN_SESSION_DATE, sessionDate);
+
         long result = db.insert(TABLE_STUDY_SESSIONS, null, values);
         return result != -1;
     }
@@ -378,6 +465,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public int getTotalStudySessions() {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT COUNT(*) FROM " + TABLE_STUDY_SESSIONS, null);
+
         int count = 0;
         if (cursor.moveToFirst()) {
             count = cursor.getInt(0);
@@ -389,6 +477,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public int getTotalStudyMinutes() {
         SQLiteDatabase db = this.getReadableDatabase();
         Cursor cursor = db.rawQuery("SELECT SUM(" + COLUMN_SESSION_DURATION + ") FROM " + TABLE_STUDY_SESSIONS, null);
+
         int total = 0;
         if (cursor.moveToFirst() && !cursor.isNull(0)) {
             total = cursor.getInt(0);
@@ -427,123 +516,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                 int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_SESSION_ID));
                 int duration = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_SESSION_DURATION));
                 String date = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_SESSION_DATE));
+
                 sessionList.add(new StudySession(id, duration, date));
             } while (cursor.moveToNext());
         }
 
         cursor.close();
         return sessionList;
-    }
-
-    // AI HISTORY METHODS
-    public boolean insertAiRoadmap(String topic, String roadmap, String createdAt) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(COLUMN_AI_TOPIC, topic);
-        values.put(COLUMN_AI_ROADMAP, roadmap);
-        values.put(COLUMN_AI_CREATED_AT, createdAt);
-        long result = db.insert(TABLE_AI_HISTORY, null, values);
-        return result != -1;
-    }
-
-    public ArrayList<AiRoadmap> getAllAiRoadmaps() {
-        ArrayList<AiRoadmap> roadmapList = new ArrayList<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-
-        Cursor cursor = db.rawQuery(
-                "SELECT * FROM " + TABLE_AI_HISTORY + " ORDER BY " + COLUMN_AI_ID + " DESC",
-                null
-        );
-
-        if (cursor.moveToFirst()) {
-            do {
-                int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_AI_ID));
-                String topic = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_AI_TOPIC));
-                String roadmap = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_AI_ROADMAP));
-                String createdAt = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_AI_CREATED_AT));
-
-                roadmapList.add(new AiRoadmap(id, topic, roadmap, createdAt));
-            } while (cursor.moveToNext());
-        }
-
-        cursor.close();
-        return roadmapList;
-    }
-
-    public boolean deleteAiRoadmap(int roadmapId) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        int result = db.delete(TABLE_AI_HISTORY, COLUMN_AI_ID + " = ?", new String[]{String.valueOf(roadmapId)});
-        return result > 0;
-    }
-
-    // EXAM METHODS
-    public boolean insertExam(String title, String examDate) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(COLUMN_EXAM_TITLE, title);
-        values.put(COLUMN_EXAM_DATE, examDate);
-        long result = db.insert(TABLE_EXAMS, null, values);
-        return result != -1;
-    }
-
-    public int getDistinctSubjectCount() {
-        SQLiteDatabase db = this.getReadableDatabase();
-        Cursor cursor = db.rawQuery(
-                "SELECT COUNT(DISTINCT " + COLUMN_CATEGORY + ") FROM " + TABLE_TASKS +
-                        " WHERE " + COLUMN_CATEGORY + " IS NOT NULL AND " + COLUMN_CATEGORY + " != ''",
-                null
-        );
-
-        int count = 0;
-        if (cursor.moveToFirst()) {
-            count = cursor.getInt(0);
-        }
-        cursor.close();
-        return count;
-    }
-
-    public Exam getNearestUpcomingExam() {
-        SQLiteDatabase db = this.getReadableDatabase();
-
-        Cursor cursor = db.rawQuery(
-                "SELECT * FROM " + TABLE_EXAMS +
-                        " WHERE " + COLUMN_EXAM_DATE + " >= date('now','localtime')" +
-                        " ORDER BY " + COLUMN_EXAM_DATE + " ASC LIMIT 1",
-                null
-        );
-
-        Exam exam = null;
-
-        if (cursor.moveToFirst()) {
-            int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_EXAM_ID));
-            String title = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EXAM_TITLE));
-            String date = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EXAM_DATE));
-
-            exam = new Exam(id, title, date);
-        }
-
-        cursor.close();
-        return exam;
-    }
-    public ArrayList<String> getAllTaskCategories() {
-        ArrayList<String> categories = new ArrayList<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-
-        Cursor cursor = db.rawQuery(
-                "SELECT DISTINCT " + COLUMN_CATEGORY +
-                        " FROM " + TABLE_TASKS +
-                        " WHERE " + COLUMN_CATEGORY + " IS NOT NULL AND " + COLUMN_CATEGORY + " != ''",
-                null
-        );
-
-        if (cursor.moveToFirst()) {
-            do {
-                categories.add(cursor.getString(0));
-            } while (cursor.moveToNext());
-        }
-
-        cursor.close();
-        return categories;
     }
 
     public int getStudyStreakDays() {
@@ -604,13 +583,149 @@ public class DatabaseHelper extends SQLiteOpenHelper {
                     break;
                 }
             }
-
         } catch (Exception e) {
             return 0;
         }
 
         return streak;
     }
+
+    // -------------------- AI HISTORY METHODS --------------------
+
+    public boolean insertAiRoadmap(String topic, String roadmap, String createdAt) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_AI_TOPIC, topic);
+        values.put(COLUMN_AI_ROADMAP, roadmap);
+        values.put(COLUMN_AI_CREATED_AT, createdAt);
+
+        long result = db.insert(TABLE_AI_HISTORY, null, values);
+        return result != -1;
+    }
+
+    public ArrayList<AiRoadmap> getAllAiRoadmaps() {
+        ArrayList<AiRoadmap> roadmapList = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT * FROM " + TABLE_AI_HISTORY + " ORDER BY " + COLUMN_AI_ID + " DESC",
+                null
+        );
+
+        if (cursor.moveToFirst()) {
+            do {
+                int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_AI_ID));
+                String topic = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_AI_TOPIC));
+                String roadmap = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_AI_ROADMAP));
+                String createdAt = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_AI_CREATED_AT));
+
+                roadmapList.add(new AiRoadmap(id, topic, roadmap, createdAt));
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        return roadmapList;
+    }
+
+    public boolean deleteAiRoadmap(int roadmapId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        int result = db.delete(TABLE_AI_HISTORY, COLUMN_AI_ID + " = ?", new String[]{String.valueOf(roadmapId)});
+        return result > 0;
+    }
+
+    // -------------------- EXAM METHODS --------------------
+
+    public boolean insertExam(String title, String examDate) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_EXAM_TITLE, title);
+        values.put(COLUMN_EXAM_DATE, examDate);
+
+        long result = db.insert(TABLE_EXAMS, null, values);
+        return result != -1;
+    }
+
+    public boolean insertOrUpdateExam(String title, String examDate) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        Cursor cursor = db.rawQuery("SELECT " + COLUMN_EXAM_ID + " FROM " + TABLE_EXAMS + " LIMIT 1", null);
+
+        ContentValues values = new ContentValues();
+        values.put(COLUMN_EXAM_TITLE, title);
+        values.put(COLUMN_EXAM_DATE, examDate);
+
+        boolean success;
+        if (cursor.moveToFirst()) {
+            int examId = cursor.getInt(0);
+            int updated = db.update(TABLE_EXAMS, values, COLUMN_EXAM_ID + " = ?", new String[]{String.valueOf(examId)});
+            success = updated > 0;
+        } else {
+            long inserted = db.insert(TABLE_EXAMS, null, values);
+            success = inserted != -1;
+        }
+
+        cursor.close();
+        return success;
+    }
+
+    public Exam getNearestUpcomingExam() {
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.rawQuery(
+                "SELECT * FROM " + TABLE_EXAMS +
+                        " WHERE " + COLUMN_EXAM_DATE + " >= date('now','localtime')" +
+                        " ORDER BY " + COLUMN_EXAM_DATE + " ASC LIMIT 1",
+                null
+        );
+
+        Exam exam = null;
+
+        if (cursor.moveToFirst()) {
+            int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_EXAM_ID));
+            String title = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EXAM_TITLE));
+            String examDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_EXAM_DATE));
+
+            exam = new Exam(id, title, examDate);
+        }
+
+        cursor.close();
+        return exam;
+    }
+
+    public String getNextExamDaysText() {
+        Exam exam = getNearestUpcomingExam();
+        if (exam == null) return "0 Days";
+
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.getDefault());
+            Date examDate = sdf.parse(exam.getExamDate());
+            if (examDate == null) return "0 Days";
+
+            Calendar today = Calendar.getInstance();
+            today.set(Calendar.HOUR_OF_DAY, 0);
+            today.set(Calendar.MINUTE, 0);
+            today.set(Calendar.SECOND, 0);
+            today.set(Calendar.MILLISECOND, 0);
+
+            Calendar examCal = Calendar.getInstance();
+            examCal.setTime(examDate);
+            examCal.set(Calendar.HOUR_OF_DAY, 0);
+            examCal.set(Calendar.MINUTE, 0);
+            examCal.set(Calendar.SECOND, 0);
+            examCal.set(Calendar.MILLISECOND, 0);
+
+            long diffMillis = examCal.getTimeInMillis() - today.getTimeInMillis();
+            long days = diffMillis / (24L * 60L * 60L * 1000L);
+
+            if (days <= 0) return "Today";
+            return days + " Days";
+        } catch (Exception e) {
+            return "0 Days";
+        }
+    }
+
+    // -------------------- AI STUDY PLAN METHODS --------------------
+
     public boolean insertAiStudyPlan(String subject, String examDate, String plan, String createdAt) {
         SQLiteDatabase db = this.getWritableDatabase();
         ContentValues values = new ContentValues();
@@ -648,44 +763,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         return plans;
     }
 
-    public boolean insertTask(String title, String category, String status, String dueDate) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        ContentValues values = new ContentValues();
-        values.put(COLUMN_TITLE, title);
-        values.put(COLUMN_CATEGORY, category);
-        values.put(COLUMN_STATUS, status);
-        values.put(COLUMN_DUE_DATE, dueDate);
-
-        long result = db.insert(TABLE_TASKS, null, values);
-        return result != -1;
-    }
-
-    public ArrayList<Task> getAllTasks() {
-        ArrayList<Task> taskList = new ArrayList<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-
-        Cursor cursor = db.rawQuery(
-                "SELECT * FROM " + TABLE_TASKS + " ORDER BY " + COLUMN_ID + " DESC",
-                null
-        );
-
-        if (cursor.moveToFirst()) {
-            do {
-                int id = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ID));
-                String title = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TITLE));
-                String category = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CATEGORY));
-                String status = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_STATUS));
-                String dueDate = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DUE_DATE));
-
-                taskList.add(new Task(id, title, category, status, dueDate));
-            } while (cursor.moveToNext());
-        }
-
-        cursor.close();
-        return taskList;
-    }
-
-
+    // -------------------- CALENDAR EVENTS --------------------
 
     public ArrayList<CalendarEvent> getAllCalendarEvents() {
         ArrayList<CalendarEvent> events = new ArrayList<>();
@@ -694,7 +772,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         Cursor taskCursor = db.rawQuery(
                 "SELECT " + COLUMN_TITLE + ", " + COLUMN_STATUS + ", " + COLUMN_DUE_DATE +
                         " FROM " + TABLE_TASKS +
-                        " WHERE " + COLUMN_DUE_DATE + " IS NOT NULL AND " + COLUMN_DUE_DATE + " != ''",
+                        " WHERE " + COLUMN_DUE_DATE + " IS NOT NULL AND TRIM(" + COLUMN_DUE_DATE + ") != ''",
                 null
         );
 
@@ -710,8 +788,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         taskCursor.close();
 
         Cursor examCursor = db.rawQuery(
-                "SELECT " + COLUMN_EXAM_TITLE + ", " + COLUMN_EXAM_DATE +
-                        " FROM " + TABLE_EXAMS,
+                "SELECT " + COLUMN_EXAM_TITLE + ", " + COLUMN_EXAM_DATE + " FROM " + TABLE_EXAMS,
                 null
         );
 
@@ -727,6 +804,4 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
         return events;
     }
-
-
 }

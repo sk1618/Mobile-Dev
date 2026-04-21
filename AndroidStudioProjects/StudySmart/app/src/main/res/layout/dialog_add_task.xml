@@ -3,37 +3,59 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:padding="20dp"
+    android:background="@drawable/card_white">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Add Task"
+        android:textColor="@color/textPrimary"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="Add a task and choose its due date."
+        android:textColor="@color/textSecondary"
+        android:textSize="13sp" />
 
     <EditText
         android:id="@+id/editTaskTitle"
         android:layout_width="match_parent"
-        android:layout_height="52dp"
-        android:background="@drawable/ai_input_bg"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/home_dropdown_bg"
         android:hint="Task title"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp" />
+        android:padding="14dp"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#D7DBF2" />
 
     <EditText
         android:id="@+id/editTaskCategory"
         android:layout_width="match_parent"
-        android:layout_height="52dp"
+        android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:background="@drawable/ai_input_bg"
-        android:hint="Category"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp" />
+        android:background="@drawable/home_dropdown_bg"
+        android:hint="Subject / Category"
+        android:padding="14dp"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#D7DBF2" />
 
     <EditText
         android:id="@+id/editTaskDueDate"
         android:layout_width="match_parent"
-        android:layout_height="52dp"
+        android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:background="@drawable/ai_input_bg"
+        android:background="@drawable/home_dropdown_bg"
+        android:clickable="true"
         android:focusable="false"
-        android:hint="Due date"
-        android:paddingStart="16dp"
-        android:paddingEnd="16dp" />
+        android:hint="Select due date"
+        android:inputType="none"
+        android:padding="14dp"
+        android:textColor="#FFFFFF"
+        android:textColorHint="#D7DBF2" />
+
 </LinearLayout>
-
-

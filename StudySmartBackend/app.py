@@ -75,37 +75,43 @@ def generate_study_plan():
         data = request.get_json(force=True)
 
         subject = data.get("subject", "").strip()
+        prep_start_date = data.get("prep_start_date", "").strip()
         exam_date = data.get("exam_date", "").strip()
-        difficulty = data.get("difficulty", "").strip()
-        topics_left = data.get("topics_left", "").strip()
+        study_scope = data.get("study_scope", "").strip()
+        weak_topics = data.get("weak_topics", "").strip()
         confidence = data.get("confidence", "").strip()
 
-        if not subject or not exam_date:
-            return jsonify({"error": "Subject and exam date are required"}), 400
+        if not subject or not prep_start_date or not exam_date or not study_scope:
+            return jsonify({"error": "Subject, preparation start date, exam date, and study scope are required"}), 400
 
         system_prompt = (
             "You are StudySmart AI, an expert academic planning assistant. "
             "Generate a personalized day-by-day study plan for a student. "
-            "Be practical, structured, and concise. "
-            "The plan must be easy to follow and should include daily tasks, revision days, practice days, and final review. "
-            "Format clearly using Day 1, Day 2, etc."
+            "Return plain text only. "
+            "Do NOT use markdown, asterisks, hashtags, or bullet symbols. "
+            "Each study day must be on its own line. "
+            "Use exactly this style:\n"
+            "Day 1 - ...\n"
+            "Day 2 - ...\n"
+            "Day 3 - ...\n"
+            "Keep it realistic, clear, and practical."
         )
 
         user_prompt = (
             f"Create a smart personalized study plan.\n\n"
             f"Subject: {subject}\n"
-            f"Exam Date: {exam_date}\n"
-            f"Difficulty: {difficulty}\n"
-            f"Topics or chapters left: {topics_left}\n"
-            f"Confidence level: {confidence}\n\n"
-            f"Make the plan realistic, student-friendly, and clearly structured day by day."
+            f"Preparation start date: {prep_start_date}\n"
+            f"Exam date: {exam_date}\n"
+            f"Detailed study scope: {study_scope}\n"
+            f"Weak topics: {weak_topics if weak_topics else 'None specified'}\n"
+            f"Confidence level: {confidence if confidence else 'Medium'}\n\n"
+            f"The plan should distribute the work from the preparation start date until the exam date. "
+            f"Include study days, revision, practice, and weak-topic review."
         )
 
-        plan = call_openrouter(system_prompt, user_prompt, max_tokens=1000, temperature=0.6)
+        plan = call_openrouter(system_prompt, user_prompt, max_tokens=1000, temperature=0.5)
         return jsonify({"plan": plan})
 
-    except requests.HTTPError as e:
-        return jsonify({"error": f"OpenRouter API HTTP error: {str(e)}"}), 502
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
